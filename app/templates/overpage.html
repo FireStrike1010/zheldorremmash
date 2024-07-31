@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Желдорремаш</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+</head>
+
+<body>
+<nav class="navbar navbar-expand-lg bg-primary" data-bs-theme="dark">
+  <a class="navbar-brand" style="margin-left: 5%;" href="{{ url_for('base.index') }}">Желдорремаш</a>
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNavDropdown" aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+  <div class="collapse navbar-collapse" id="navbarNavDropdown">
+    <ul class="navbar-nav">
+      {% if session.get('admin') %}
+      <li class="nav-item dropdown">
+        <a class="nav-link dropdown-toggle" style="color: white;" id="navbarDropdownMenuLink" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          Админ-функции
+        </a>
+        <div class="dropdown-menu" style="background-color: #9b1b0c;" aria-labelledby="navbarDropdownMenuLink">
+          <a class="dropdown-item" style="color: white;" href="{{ url_for('profile.users_list') }}">Пользователи</a>
+          <a class="dropdown-item" style="color: white;" href="{{ url_for('auth.signup') }}">Создать пользователя</a>
+        </div>
+      </li>
+      {% endif %}
+      {% if session.get('logged_in') %}
+      <li class="nav-item dropdown">
+        <a class="nav-link dropdown-toggle" style="color: white;" id="navbarDropdownMenuLink" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          {{ session.get('name', '') }} {{ session.get('patronymic', '') }}
+        </a>
+        <div class="dropdown-menu" style="background-color: #9b1b0c;" aria-labelledby="navbarDropdownMenuLink">
+          <a class="dropdown-item" style="color: white;" href="{{ url_for('profile.profile_edit', username=session.get('username')) }}">Профиль</a>
+          <a class="dropdown-item" style="color: white;" onclick="confirmLogout()">Выход</a>
+        </div>
+      </li>
+      {% endif %}
+    </ul>
+  </div>
+</nav>
+{% block content %}
+{% endblock %}
+<script>
+  function confirmLogout() {
+      if (confirm("Вы точно хотите выйти?")) {
+          window.location.href = "{{ url_for('auth.logout') }}";
+      }
+  }
+</script>
+<script src="{{ url_for('static', filename='js/jquery-3.7.1.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+{% extends 'overpage.html' %}
+
+{% block content %}
+<body>
+
+<center>
+<h1> Исполнение плана мероприятий по ДК ТОС </h1>
+</center>
+<form method="post">
+  <button type="button" class="btn btn-light" style="margin-top:2%; margin-bottom:2%; margin-left:2%; margin-right:2%;" onclick="window.location.href = 'history.back()'">« Назад</button>
+  <input type="submit" class="btn btn-primary" style="margin-top:2%; margin-bottom:2%; margin-left:2%; margin-right:2%;" value="Сохранить">
+<table class="table table-hover">
+  <thead>
+    <tr class="table-primary">
+      <th scope="col" style="text-align: center; vertical-align: middle;">Раздел</th>
+      <th scope="col" style="text-align: center; vertical-align: middle;">Уровень ДК</th>
+      <th scope="col" style="text-align: center; vertical-align: middle">План/факт</th>
+      <th scope="col" style="text-align: center; vertical-align: middle;">Январь</th>
+      <th scope="col" style="text-align: center; vertical-align: middle;">Февраль</th>
+      <th scope="col" style="text-align: center; vertical-align: middle;">Март</th>
+      <th scope="col" style="text-align: center; vertical-align: middle;">Апрель</th>
+      <th scope="col" style="text-align: center; vertical-align: middle;">Май</th>
+      <th scope="col" style="text-align: center; vertical-align: middle;">Июнь</th>
+      <th scope="col" style="text-align: center; vertical-align: middle;">Июль</th>
+      <th scope="col" style="text-align: center; vertical-align: middle;">Август</th>
+      <th scope="col" style="text-align: center; vertical-align: middle;">Сентябрь</th>
+      <th scope="col" style="text-align: center; vertical-align: middle;">Октябрь</th>
+      <th scope="col" style="text-align: center; vertical-align: middle;">Ноябрь</th>
+      <th scope="col" style="text-align: center; vertical-align: middle;">Декабрь</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    {% for section, levels in form.items() %}
+        <tr>
+            <th scope="row" class="table-primary" rowspan="{{ levels|length * 2 }}" style="text-align: center; vertical-align: middle">{{ section }}</th>
+            {% for level_dk, fields in levels.items() %}
+                {% if loop.index != 1 %}
+                    <tr>
+                {% endif %}
+                <td scope="row" class="table-primary" rowspan="2" style="text-align: center; vertical-align: middle">{{ level_dk }}</td>
+                <td scope="row" class="table-dark" style="text-align: center; vertical-align: middle;">План</td>
+                {% for field in fields['plan'] %}
+                    <td class="table-dark" style="text-align: center; vertical-align: middle;">{{ field|safe }}</td>
+                {% endfor %}
+                </tr>
+                <tr>
+                <td scope="row" style="text-align: center; vertical-align: middle;">Факт</td>
+                {% for field in fields['fact'] %}
+                    <td style="text-align: center; vertical-align: middle;">{{ field|safe }}</td>
+                {% endfor %}
+                </tr>
+            {% endfor %}
+        </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</form>
+</body>
+{% endblock %}

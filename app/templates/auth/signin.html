@@ -1,0 +1,38 @@
+{% extends "overpage.html" %}
+
+{% block content %}
+<body>
+    <div class="card border-primary mb-3" style="max-width: 20rem; width: 50%; margin-top:8%;
+            border:5px solid red; border-radius:6%; text-align: center; margin-left: 38%;">
+
+      <img style="margin-top:10%; margin-bottom:10%; margin-left:5%;margin-right:5%; max-width:20rem" src="{{ url_for('static', filename='icons/logo_icon.png') }}">
+      <div class="card-body">
+        <h4 class="card-title">Авторизация</h4>
+        <p class="card-text">Введите логин и пароль</p>
+          <form method="post" action="/signin" enctype="multipart/form-data">
+            {{ form.csrf_token }}
+              <fieldset>
+                <div style="margin-top:7%; margin-bottom:5%">
+                  {{ form.username() }}
+                </div>
+                <div style="margin-top:7%; margin-bottom:5%">
+                  {{ form.password() }}
+                </div>
+                {% with messages = get_flashed_messages(with_categories=True) %}
+                  {% if messages %}
+                    {% for category, message in messages %}
+                      <div class="alert alert-{{ category }}" role="alert">
+                        {{ message }}
+                      </div>
+                    {% endfor %}
+                  {% endif %}
+                {% endwith %}
+                <div style="margin-top:7%; margin-bottom:5%">
+                  {{ form.submit() }}
+                </div>
+              </fieldset>
+          </form>
+      </div>
+    </div>
+</body>
+{% endblock %}
