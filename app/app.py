@@ -13,7 +13,7 @@ def create_app():
     app = Flask(__name__, template_folder='../templates')
 
     app.secret_key = 'secret-key'
-    app.config['SQLALCHEMY_DATABASE_URI'] = "postgresql://flask:123@localhost:5432/zheldormash"
+    app.config['SQLALCHEMY_DATABASE_URI'] = "postgresql://username:password@ip:port/schema"
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
     app.config['MESSAGE_FLASHING_OPTION'] = {'duration': 5}
 
