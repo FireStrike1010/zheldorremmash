@@ -1,11 +1,6 @@
 {% extends "overpage.html" %}
 
 {% block content %}
-<head>
-    <meta charset="UTF-8">
-    <title>Главная страница</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
-</head>
 <body style="background-image: linear-gradient(to right, #E2BCBB, #E4514A);">
 
 <div style="margin-top:5%;display: flex; justify-content: space-around; ">
@@ -14,10 +9,10 @@
 
     <div class="card-body">
       <h4 class="card-title">Дашборд</h4>
-      <p class="card-text" style="height:10rem">Визуализация сводной статисти по выполнению поставленного плана</p>
+      <p class="card-text" style="height:10rem">Визуализация сводной статистики по выполнению поставленного плана</p>
       {% if 'facility_permissions' in session %}
         {% for facility in session['facility_permissions'] %}
-          <button type="button" class="btn btn-light" style="margin-top:2%; margin-bottom:2%; margin-left:2%; margin-right:2%;" onclick="window.location.href = '/dashboard/{{ facility[1] }}'">{{ facility[0] }}</button>
+          <button type="button" class="btn btn-light" style="margin-top:2%; margin-bottom:2%; margin-left:2%; margin-right:2%;" onclick="window.location.href = '/dashboard/{{ facility[0] }}/{{ year }}'">{{ facility[2] }}</button>
         {% endfor %}
       {% endif %}
     </div>
@@ -30,7 +25,7 @@
       <p class="card-text" style="height:8rem">Формирование и изменение плановых и фактических показателей сотрудниками заводов и начальником отдела </p>
       {% if 'facility_permissions' in session %}
         {% for facility in session['facility_permissions'] %}
-          <button type="button" class="btn btn-primary" style="margin-top:2%; margin-bottom:2%; margin-left:2%; margin-right:2%;" onclick="window.location.href = '/data_tables/{{ facility[1] }}'">{{ facility[0] }}</button>
+          <button type="button" class="btn btn-primary" style="margin-top:2%; margin-bottom:2%; margin-left:2%; margin-right:2%;" onclick="window.location.href = '/data_tables/{{ facility[0] }}'">{{ facility[2] }}</button>
         {% endfor %}
       {% endif %}
     </div>

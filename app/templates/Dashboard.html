@@ -1,11 +1,54 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Дашборд</title>
-  <link rel="stylesheet" href="bootstrap.min.css">
-</head>
+{% extends "overpage.html" %}
+
+{% block content %}
+<style>
+  .left-graph {
+    width: 80%;
+    height: 100%;
+    margin-left: 3%;
+  }
+  .right-graph {
+    width: 20%;
+    height: 100%;
+    margin-right: 3%;
+  }
+  .graph-block {
+    display: flex;
+    width: 100%;
+    height: 500px;
+  }
+</style>
 <body style="background-image: linear-gradient(to right, #E2BCBB, #E4514A);">
-hello
+  <div class="d-flex justify-content-center align-items-center">
+    <div class="card" style="width: 900px; margin-top: 3%; margin-bottom: 3%;">
+      <div class="card-title" style="text-align: center; margin-top: 3%;"><b><strong>{{ facility_name }}</strong></b></div>
+      <div class="card-text" style="text-align: center;">{{ year }}г.</div>
+      <div class="card-body">
+        <div class="graph-block">
+          <div class="left-graph" id="target_indicator"></div>
+          <div class="right-graph" id="target_indicator_pie"></div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="graph-block">
+          <div class="left-graph" id="action_plan_implementation"></div>
+          <div class="right-graph" id="action_plan_implementation_pie"></div>
+        </div>
+      </div>
+    </div>
+</div>
+
+  <script src="{{ url_for('static', filename='js/plotly-2.34.0.min.js') }}"></script>
+  <script type="text/javascript">
+      function renderGraph(graphId, graphJson) {
+          var graphData = JSON.parse(graphJson);
+          Plotly.newPlot(graphId, graphData.data, graphData.layout);
+      }
+
+      renderGraph('target_indicator', '{{ target_indicator | safe }}');
+      renderGraph('target_indicator_pie', '{{ target_indicator_pie | safe }}');
+      renderGraph('action_plan_implementation', '{{ action_plan_implementation | safe }}');
+      renderGraph('action_plan_implementation_pie', '{{ action_plan_implementation_pie | safe }}');
+  </script>
 </body>
-</html>
+{% endblock %}

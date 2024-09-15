@@ -17,6 +17,7 @@ psycopg2 = "^2.9.9"
 gevent = "^24.2.1"
 pandas = "^2.2.2"
 plotly = "^5.23.0"
+flask-caching = "^2.3.0"
 
 
 [build-system]
