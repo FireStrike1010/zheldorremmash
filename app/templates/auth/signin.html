@@ -18,15 +18,6 @@
                 <div style="margin-top:7%; margin-bottom:5%">
                   {{ form.password() }}
                 </div>
-                {% with messages = get_flashed_messages(with_categories=True) %}
-                  {% if messages %}
-                    {% for category, message in messages %}
-                      <div class="alert alert-{{ category }}" role="alert">
-                        {{ message }}
-                      </div>
-                    {% endfor %}
-                  {% endif %}
-                {% endwith %}
                 <div style="margin-top:7%; margin-bottom:5%">
                   {{ form.submit() }}
                 </div>

@@ -5,7 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Желдорремаш</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+  <style>
+    .flash-message {
+      position: fixed;
+      top: -50px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      transition: top 0.5s ease-in-out;
+    }
+
+    .flash-message.show {
+      top: 70px;
+    }
+</style>
 </head>
+
 
 <body>
 <nav class="navbar navbar-expand-lg bg-primary" data-bs-theme="dark">
@@ -40,14 +55,35 @@
     </ul>
   </div>
 </nav>
+<div class="flash-message-container">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} flash-message">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+</div>
 {% block content %}
 {% endblock %}
 <script>
   function confirmLogout() {
-      if (confirm("Вы точно хотите выйти?")) {
-          window.location.href = "{{ url_for('auth.logout') }}";
-      }
-  }
+    if (confirm("Вы точно хотите выйти?")) {
+      window.location.href = "{{ url_for('auth.logout') }}";
+    }
+  };
+  document.addEventListener('DOMContentLoaded', function () {
+    const flashMessages = document.querySelectorAll('.flash-message');
+    flashMessages.forEach(function (flashMessage) {
+      flashMessage.classList.add('show');
+      setTimeout(function () {
+        flashMessage.classList.remove('show');
+        flashMessage.style.top = '-70px';
+      }, 3000);
+    });
+  });
 </script>
 <script src="{{ url_for('static', filename='js/jquery-3.7.1.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>

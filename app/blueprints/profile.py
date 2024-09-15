@@ -1,10 +1,10 @@
-from flask import Blueprint, session, redirect, url_for, render_template, flash
-from .auth import get_logged_in_user
+from flask import Blueprint, session, redirect, url_for, render_template, flash, g
 from models import Users, db
 from forms import profile_edit_form, change_password_form
-from app import bcrypt
+from app import bcrypt, cache
+from typing import List
 
-def get_users_list():
+def get_users_list() -> List[Users]:
     users = Users.query.order_by(Users.surname, Users.name, Users.patronymic).all()
     return users
     
@@ -14,19 +14,17 @@ profile = Blueprint('profile', __name__, template_folder='../templates', static_
     
 @profile.route('/users_list', methods=['GET'])
 def users_list():
-    user = get_logged_in_user(session)
-    if not user or not user.admin:
+    if not g.user.admin:
         redirect(url_for('auth.signin'))
     users = get_users_list()
     return render_template('profile/users_list.html', session=session, users=users)
 
 @profile.route('/profile/<string:username>', methods=['GET', 'POST'])
 def profile_edit(username: str):
-    user = get_logged_in_user(session)
     queried_user = Users.query.filter_by(username=username).first()
-    if not user or not queried_user:
+    if not queried_user:
         return redirect(url_for('auth.signin'))
-    if queried_user.username == username or user.admin:
+    if queried_user.username == username or g.user.admin:
         form = profile_edit_form(name=queried_user.name,
                                  surname=queried_user.surname,
                                  patronymic=queried_user.patronymic,
@@ -46,7 +44,7 @@ def profile_edit(username: str):
             queried_user.name = form.name.data
             queried_user.surname = form.surname.data
             queried_user.patronymic = form.patronymic.data
-            if user.admin:
+            if g.user.admin:
                 queried_user.plan_edit_permission = form.plan_edit_permission.data
                 queried_user.fact_edit_permission = form.fact_edit_permission.data
                 queried_user.all_months_edit_permission = form.all_months_edit_permission.data
@@ -61,46 +59,48 @@ def profile_edit(username: str):
                 queried_user.facility_AU = form.facility_AU.data
             db.session.commit()
             flash('Изменения сохранены', category='info')
-            if user.admin:
+            if g.user.admin:
+                cache.delete(username)
                 return redirect(url_for('profile.users_list'))
             else:
+                session['name'] = form.name.data
+                session['surname'] = form.surname.data
+                session['patronymic'] = form.patronymic.data
                 return redirect(url_for('base.index'))
-        return render_template('profile/profile.html', form=form, user=user, queried_user=queried_user, session=session)
+        return render_template('profile/profile.html', form=form, user=g.user, queried_user=queried_user, session=session)
     else:
         return redirect(url_for('auth.signin'))
 
 @profile.route('/delete/<string:username>', methods=['GET'])
 def delete(username: str):
-    user = get_logged_in_user(session)
-    if not user or not user.admin:
+    if not g.user.admin:
         return redirect(url_for('auth.signin'))
     queried_user = Users.query.filter_by(username=username).first()
     if not queried_user.admin:
         db.session.delete(queried_user)
         db.session.commit()
         flash(f'Пользователь {username} удален.', category='info')
+        cache.delete(username)
         return redirect(url_for('profile.users_list'))
 
 @profile.route('/change_password/<string:username>', methods=['GET', 'POST'])
 def change_password(username: str):
-    user = get_logged_in_user(session)
-    if not user or not (user.username == username or user.admin):
+    if not (g.user.username == username or g.user.admin):
         return redirect(url_for('auth.signin'))
     queried_user = Users.query.filter_by(username=username).first()
     form = change_password_form()
     if form.validate_on_submit():
-        if user.admin or bcrypt.check_password_hash(queried_user.password, form.old_password.data):
+        if g.user.admin or bcrypt.check_password_hash(queried_user.password, form.old_password.data):
             hashed_password = bcrypt.generate_password_hash(form.new_password.data).decode()
             queried_user.password = hashed_password
             db.session.commit()
             flash('Пароль изменен.', category='info')
-            if queried_user.username == user.username:
-                print(queried_user.username, user.username)
-                session.clear()
-                return redirect(url_for('auth.signin'))
+            flash('Пароль успешно изменен.', category='info')
+            if queried_user.username == g.user.username:
+                return redirect(url_for('base.index'))
             else:
                 return redirect(url_for('profile.users_list'))
         else:
-            flash('Неверный старый пароль', category='error')
+            flash('Неверный старый пароль', category='warning')
             return redirect(url_for('profile.change_password', username=username))
-    return render_template('profile/change_password.html', form=form, user=user, username=queried_user.username)
+    return render_template('profile/change_password.html', form=form, user=g.user, username=queried_user.username)

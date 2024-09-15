@@ -21,6 +21,8 @@ def deploy():
 	return app
 
 if __name__ == '__main__':
+	import warnings
+	warnings.simplefilter(action='ignore', category=FutureWarning)
 	from gevent.pywsgi import WSGIServer
 	app = deploy()
 	server = WSGIServer(('localhost', 5000), app)
