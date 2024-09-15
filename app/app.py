@@ -14,7 +14,7 @@ def create_app():
     app = Flask(__name__, template_folder='../templates')
 
     app.secret_key = 'secret-key'
-    app.config['SQLALCHEMY_DATABASE_URI'] = "postgresql://flask:123@localhost:5432/zheldormash"
+    app.config['SQLALCHEMY_DATABASE_URI'] = "postgresql://user:password@ip:port/database"
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
     app.config['CACHE_TYPE'] = 'SimpleCache'
     app.config['CACHE_DEFAULT_TIMEOUT'] = 604800 ## 1 week
