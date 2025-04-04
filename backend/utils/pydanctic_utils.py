@@ -6,7 +6,7 @@ def pass_fields(to_model: BaseModel, from_object: BaseModel, **kwargs) -> BaseMo
     return to_model(**from_object.model_dump(include=set(to_model.model_fields.keys())), **kwargs)
 
 
-class PyObjectId(str):
+class PyObjectId(ObjectId):
     @classmethod
     def __get_validators__(cls):
         yield cls.validate
@@ -18,5 +18,5 @@ class PyObjectId(str):
         return str(v)
 
     @classmethod
-    def __get_pydantic_json_schema__(cls, field_schema):
-        field_schema.update(type="string")
+    def __get_pydantic_json_schema__(cls, field_schema, handler):
+        return {'type': 'string'}
