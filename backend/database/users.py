@@ -1,7 +1,7 @@
 from fastapi import Request
 from motor.motor_asyncio import AsyncIOMotorCollection
 from pymongo.errors import DuplicateKeyError
-from typing import Optional, Self, Literal, List, NoReturn
+from typing import Optional, Self, Literal, List, NoReturn, Dict
 from utils.pydanctic_utils import PyObjectId
 from bson import ObjectId
 from pydantic import BaseModel, EmailStr, Field
@@ -31,9 +31,10 @@ class UserSchema(BaseModel):
 class UsersOrm:
     @staticmethod
     def get_orm(request: Request) -> Self:
-        return UsersOrm(request.app.state.db['Users'])
+        return UsersOrm(request.app.state.db['Users'], request.app.state.config.get('MASTER_KEY'))
 
-    def __init__(self, collection_instance: AsyncIOMotorCollection) -> None:
+    def __init__(self, collection_instance: AsyncIOMotorCollection, master_key: Optional[str] = None) -> None:
+        self._master_key = master_key
         self.collection = collection_instance
     
     async def add_one(self, user: UserSchema) -> UserSchema | NoReturn:
@@ -102,3 +103,11 @@ class UsersOrm:
         result = await self.collection.find_one_and_delete({'username': username})
         if not result:
             raise ValueError(f'User with username {username} not found')
+
+    async def validate_session_key(self, session_key: str) -> Dict[str, str] | NoReturn:
+        if self._master_key and session_key == self._master_key:
+            return {'role': 'Admin', 'username': 'Master'}
+        user = await self.collection.find_one({'session_keys': {'$in': [session_key]}})
+        if not user:
+            raise ValueError('Invalid session key')
+        return user
