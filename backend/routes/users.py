@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pymongo.errors import DuplicateKeyError
 from datetime import datetime
-from models.users import AddUserRequest, AddUserResponse, User, UpdateUserRequest
+import asyncio
+from models.users import AddUserRequest, AddUserResponse, User, UpdateUserRequest, DeleteManyRequest
 from database.users import UserSchema, UsersOrm
 from utils.password_hasher import hash_password
 from utils.session_validator import verify_role, get_session_key, get_current_user
@@ -27,14 +28,11 @@ async def add(data: AddUserRequest,
 async def get(username: str,
               session_key: str = Depends(get_session_key),
               userorm: UsersOrm = Depends(UsersOrm.get_orm)):
-    current_user = await get_current_user(session_key, userorm)
-    if current_user['username'] == username or current_user['role'] in ['Admin', 'Moderator']:
-        user = await userorm.get_one_by(username=username)
-        if not user:
-            raise HTTPException(404, f"User not found")
-        return pass_fields(User, user)
-    else:
-        raise HTTPException(403, f"You don't have that privilege, you must be Admin or THIS user")
+    await get_current_user(session_key, userorm)
+    user = await userorm.get_one_by(username=username)
+    if not user:
+        raise HTTPException(404, f"User not found")
+    return pass_fields(User, user)
 
 @router.delete('/@{username}')
 async def delete(username: str,
@@ -43,6 +41,17 @@ async def delete(username: str,
     await verify_role(session_key, userorm, ['Admin'])
     try:
         await userorm.delete_by_username(username)
+    except ValueError as e:
+        raise HTTPException(404, detail=str(e))
+    return
+
+@router.delete('/delete_many')
+async def delete_many(data: DeleteManyRequest,
+                      session_key: str = Depends(get_session_key),
+                      userorm: UsersOrm = Depends(UsersOrm.get_orm)):
+    await verify_role(session_key, userorm, possible_roles=['Admin'])
+    try:
+        await asyncio.gather(*(userorm.delete_by_username(username) for username in data.usernames))
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
     return

@@ -12,6 +12,8 @@ class UserSchema(BaseModel):
     id: Optional[PyObjectId] = Field(default=None, alias='_id')
     username: str
     email: EmailStr
+    telelegram: Optional[str] = None
+    photo: Optional[bytes] = None
     name: str
     surname: str
     patronymic: Optional[str] = None
@@ -83,7 +85,7 @@ class UsersOrm:
             return_document=True
         )
         if not result:
-            raise ValueError(f'User with ID {id} not found')
+            raise ValueError(f'User with ID {user_id} not found')
         return UserSchema(**result)
     
     async def update_by_username(self, username: str, **kwargs) -> UserSchema | NoReturn:

@@ -8,6 +8,7 @@ class LoginRequest(BaseModel):
 
 class LoginResponse(BaseModel):
     username: str = Field(description='Username')
+    photo: Optional[bytes] = Field(default=None, description='Photo (avatar)')
     name: str = Field(description='First name')
     surname: str = Field(description='Second name')
     patronymic: Optional[str] = Field(default=None, description='Patronymic')
