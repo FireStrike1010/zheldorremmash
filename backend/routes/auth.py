@@ -1,5 +1,4 @@
 from fastapi import APIRouter, HTTPException, Depends
-from fastapi.responses import RedirectResponse
 from secrets import token_hex
 from database.users import UsersOrm
 from models.auth import LoginRequest, LoginResponse, UpdatePasswordRequest

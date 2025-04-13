@@ -31,7 +31,7 @@ async def get(username: str,
     await get_current_user(session_key, userorm)
     user = await userorm.get_one_by(username=username)
     if not user:
-        raise HTTPException(404, f"User not found")
+        raise HTTPException(404, "User not found")
     return pass_fields(User, user)
 
 @router.delete('/@{username}')
@@ -71,14 +71,14 @@ async def patch(username: str,
             raise HTTPException(404, detail=str(e))
     elif current_user['username'] == username:
         if any(k in ['username', 'email', 'password', 'role', 'job_title'] for k in data.keys()):
-            raise HTTPException(403, f"You don't have that privilege, you must be admin")
+            raise HTTPException(403, "You don't have that privilege, you must be admin")
         try:
             user = await userorm.update_by_username(username, kwargs=data)
             return pass_fields(User, user)
         except ValueError as e:
             raise HTTPException(404, detail=str(e))
     else:
-        raise HTTPException(404, detail=str(e))
+        raise HTTPException(404)
 
 @router.get('/', response_model=List[User])
 async def get_all(session_key: str = Depends(get_session_key),
