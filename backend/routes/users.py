@@ -6,7 +6,7 @@ from models.users import AddUserRequest, AddUserResponse, User, UpdateUserReques
 from database.users import UserSchema, UsersOrm
 from utils.password_hasher import hash_password
 from utils.session_validator import verify_role, get_session_key, get_current_user
-from utils.pydanctic_utils import pass_fields
+from utils.pydantic_utils import pass_fields
 from typing import List
 
 router = APIRouter(prefix='/users', tags=['Users'])
@@ -65,7 +65,7 @@ async def patch(username: str,
     data = data.model_dump(exclude_none=True)
     if current_user['role'] == 'Admin':
         try:
-            user = await userorm.update_by_username(username, kwargs=data)
+            user = await userorm.update_by_username(username=username, kwargs=data)
             return pass_fields(User, user)
         except ValueError as e:
             raise HTTPException(404, detail=str(e))
@@ -73,7 +73,7 @@ async def patch(username: str,
         if any(k in ['username', 'email', 'password', 'role', 'job_title'] for k in data.keys()):
             raise HTTPException(403, "You don't have that privilege, you must be admin")
         try:
-            user = await userorm.update_by_username(username, kwargs=data)
+            user = await userorm.update_by_username(username=username, kwargs=data)
             return pass_fields(User, user)
         except ValueError as e:
             raise HTTPException(404, detail=str(e))

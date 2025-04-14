@@ -1,18 +1,19 @@
 from fastapi import Request
 from motor.motor_asyncio import AsyncIOMotorCollection
 from pymongo.errors import DuplicateKeyError
-from typing import Optional, Self, Literal, List, NoReturn, Dict
-from utils.pydanctic_utils import PyObjectId
+from typing import Optional, Self, Literal, List, NoReturn, Dict, Any
+from utils.pydantic_utils import PyObjectId
 from bson import ObjectId
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from datetime import datetime
 
 
 class UserSchema(BaseModel):
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
     id: Optional[PyObjectId] = Field(default=None, alias='_id')
     username: str
     email: EmailStr
-    telelegram: Optional[str] = None
+    telegram: Optional[str] = None
     photo: Optional[bytes] = None
     name: str
     surname: str
@@ -23,9 +24,6 @@ class UserSchema(BaseModel):
     last_login: Optional[datetime] = None
     password: str
     session_keys: List[str] = Field(default_factory=list)
-
-    class Config:
-        pupulate_by_name = True
 
 
 class UsersOrm:
@@ -79,7 +77,7 @@ class UsersOrm:
         if not result:
             raise ValueError(f'User with ID {user_id} not found or session key does not exist')
 
-    async def update_by_id(self, user_id: str, **kwargs) -> UserSchema | NoReturn:
+    async def update_by_id(self, user_id: str, kwargs: Dict[str, Any]) -> UserSchema | NoReturn:
         result = await self.collection.find_one_and_update(
             {'_id': ObjectId(user_id)},
             {'$set': kwargs},
@@ -89,8 +87,8 @@ class UsersOrm:
             raise ValueError(f'User with ID {user_id} not found')
         return UserSchema(**result)
     
-    async def update_by_username(self, username: str, **kwargs) -> UserSchema | NoReturn:
-        result = await self.collection.find_one_and_replace(
+    async def update_by_username(self, username: str, kwargs: Dict[str, Any]) -> UserSchema | NoReturn:
+        result = await self.collection.find_one_and_update(
             {'username': username},
             {'$set': kwargs},
             return_document=True

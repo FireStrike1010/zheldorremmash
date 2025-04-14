@@ -2,9 +2,9 @@ from fastapi import Request
 from motor.motor_asyncio import AsyncIOMotorCollection
 from pymongo.errors import DuplicateKeyError
 from typing import Optional, Self, Literal, List, NoReturn, Dict, Any
-from utils.pydanctic_utils import PyObjectId
+from utils.pydantic_utils import PyObjectId
 from bson import ObjectId
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 
 
@@ -20,15 +20,13 @@ class QuestionSchema(BaseModel):
     answer_type_attributes: Optional[Dict[str, Any]] = None
 
 class TestSchema(BaseModel):
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
     id: Optional[PyObjectId] = Field(default=None, alias='_id')
     name: str
     description: Optional[str] = None
     created_at: datetime
-    ### [Разделы[Категории[Уровни[Вопросы(QuestionSchema)]]]]
+    ### {Разделы{Категории[Уровни[Вопросы(QuestionSchema)]]}}
     data: Optional[Dict[str, Dict[str, List[List[QuestionSchema]]]]] = None
-
-    class Config:
-        pupulate_by_name = True
     
 
 class TestsOrm:
@@ -140,11 +138,3 @@ class TestsOrm:
         await self.collection.update_one(
             {'_id': ObjectId(id)},
             {'$set': {f'data.{part_name}': {key: [[x.model_dump() for x in value[index]] for index in range(value)] for key, value in data.items()}}},)
-    
-    async def delete_category(self,
-                              id: str,
-                              part_name: str) -> None | NoReturn:
-        await self.collection.update_one(
-            {'_id': ObjectId(id)},
-            {'$unset': {f'data.{part_name}': None}})
-    

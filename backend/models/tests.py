@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, Dict, List
 from datetime import datetime
 from database.tests import QuestionSchema
-from utils.pydanctic_utils import PyObjectId
+from utils.pydantic_utils import PyObjectId
 
 class AddTestRequest(BaseModel):
     name: str = Field(description='Name of the test')

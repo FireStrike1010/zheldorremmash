@@ -5,7 +5,7 @@ from models.tests import AddTestRequest, AddTestResponse, QuickTest
 from database.users import UsersOrm
 from database.tests import TestsOrm, TestSchema
 from utils.session_validator import verify_role, get_session_key, get_current_user
-from utils.pydanctic_utils import pass_fields
+from utils.pydantic_utils import pass_fields
 from typing import List
 
 router = APIRouter(prefix='/tests', tags=['Tests'])
@@ -33,7 +33,7 @@ async def get(test_id: str,
     await get_current_user(session_key, userorm)
     test = await testorm.get_one(test_id)
     if not test:
-        raise HTTPException(404, detail=f'Test not found')
+        raise HTTPException(404, detail='Test not found')
     return pass_fields(TestSchema, test)
 
 @router.get('/', response_model=List[QuickTest])

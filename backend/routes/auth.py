@@ -4,7 +4,7 @@ from database.users import UsersOrm
 from models.auth import LoginRequest, LoginResponse, UpdatePasswordRequest
 from utils.email_validator import is_email
 from utils.password_hasher import verify_password, hash_password
-from utils.pydanctic_utils import pass_fields
+from utils.pydantic_utils import pass_fields
 from utils.session_validator import get_current_user, get_session_key
 
 
