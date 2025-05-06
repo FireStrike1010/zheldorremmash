@@ -1,5 +1,6 @@
-from pydantic import BaseModel, Field
-from typing import Optional, Literal
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Optional
+from database.users import Roles
 
 
 class LoginRequest(BaseModel):
@@ -7,12 +8,13 @@ class LoginRequest(BaseModel):
     password: str = Field(description='Password')
 
 class LoginResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     username: str = Field(description='Username')
     photo: Optional[bytes] = Field(default=None, description='Photo (avatar)')
     name: str = Field(description='First name')
     surname: str = Field(description='Second name')
     patronymic: Optional[str] = Field(default=None, description='Patronymic')
-    role: Literal['Admin', 'Moderator', 'Auditor', 'User'] = Field(default='User', description='Roles with different access levels')
+    role: Roles = Field(default='User', description='Roles with different access levels')
     api_session_key: str = Field(description='''Session key required for any other requests, 
                                  pass this value in headers as "session_key"''')
 

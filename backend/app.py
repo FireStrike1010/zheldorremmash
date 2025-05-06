@@ -1,18 +1,21 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import dotenv_values
+from dotenv import load_dotenv
+import os
 from contextlib import asynccontextmanager
 from motor.motor_asyncio import AsyncIOMotorClient
+from beanie import init_beanie
 from routes import routers
+from database import model_list
 
 
-config = dotenv_values('.env')
+load_dotenv('.env')
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.client = AsyncIOMotorClient(config['MONGODB_URI'])
-    app.state.db = app.state.client[config['DB_NAME']]
-    app.state.config = config
+    app.state.client = AsyncIOMotorClient(os.getenv('MONGODB_URI'))
+    app.state.db = app.state.client[os.getenv('DB_NAME')]
+    await init_beanie(app.state.db, document_models=model_list)
     yield
     app.state.client.close()
 

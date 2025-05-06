@@ -1,140 +1,78 @@
-from fastapi import Request
-from motor.motor_asyncio import AsyncIOMotorCollection
-from pymongo.errors import DuplicateKeyError
-from typing import Optional, Self, Literal, List, NoReturn, Dict, Any
-from utils.pydantic_utils import PyObjectId
-from bson import ObjectId
+from typing import Optional, Self, Literal, List, NoReturn, Dict, Any, OrderedDict
 from pydantic import BaseModel, Field, ConfigDict
-from datetime import datetime
+from beanie import Document, Indexed
+from datetime import datetime, timedelta
+from models.tests import AddTestRequest, AddQuestionRequest
+from bson import ObjectId
 
 
 FieldType = Literal['checkbox', 'text', 'number', 'radio']
 
 class QuestionSchema(BaseModel):
-    task_value: str
-    control_element: Optional[str]
-    list_events: Optional[str]
-    additional_info: Optional[str] = None
-    answer_type: FieldType
-    answer_label: Optional[str] = None
-    answer_type_attributes: Optional[Dict[str, Any]] = None
+    model_config = ConfigDict(from_attributes=True)
+    task_value: str = Field(description="Roadmap requirements, how to achieve")
+    control_element: Optional[str] = Field(default=None, description="Control validation records (Names of mandatory documents that demonstrate proper control execution)")
+    additional_info: Optional[str] = Field(default=None, description="Additional info")
+    answer_type: FieldType = Field(description="HTML input type: checkbox - boolean, text - text (free-form text), number - integer/float, radio - text (selector)")
+    answer_label: Optional[str] = Field(default=None, description="HTML label for input")
+    answer_type_attributes: Optional[Dict[str, Any]] = Field(default=None, description="Additional field for HTML input style or whatever")
 
-class TestSchema(BaseModel):
-    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
-    id: Optional[PyObjectId] = Field(default=None, alias='_id')
-    name: str
+class Test(Document):
+    name: Indexed(str) # type: ignore
     description: Optional[str] = None
     created_at: datetime
     ### {Разделы{Категории[Уровни[Вопросы(QuestionSchema)]]}}
-    data: Optional[Dict[str, Dict[str, List[List[QuestionSchema]]]]] = None
+    data: Optional[OrderedDict[str, OrderedDict[str, OrderedDict[int, OrderedDict[int, QuestionSchema]]]]] = None
     
-
-class TestsOrm:
-    @staticmethod
-    def get_orm(request: Request) -> Self:
-        return TestsOrm(request.app.state.db['Tests'])
+    class Settings:
+        name = "Tests"
+        use_cache = True
+        cache_expiration_time = timedelta(days=3)
     
-    def __init__(self, collection_instance: AsyncIOMotorCollection) -> None:
-        self.collection = collection_instance
+    @classmethod
+    async def add_one(cls, test: AddTestRequest) -> Self | NoReturn:
+        new_test = cls(**test.model_dump(), created_at=datetime.now())
+        return await new_test.insert()
     
-    async def add_one(self, test: TestSchema) -> TestSchema | NoReturn:
-        if await self.collection.find_one({'name': test.name}):
-            raise DuplicateKeyError(f'Test {test.name} is taken')
-        orm_response = await self.collection.insert_one(test.model_dump(exclude={'id'}), True)
-        test = await self.get_one(id=orm_response.inserted_id)
+    @classmethod
+    async def get_one(cls, id: str) -> Self | NoReturn:
+        test = await cls.get(ObjectId(id))
+        if test is None:
+            raise ValueError(f'Test with ID {id} not found')
         return test
     
-    async def get_one(self, id: str) -> Optional[TestSchema]:
-        return await self.collection.find_one({'_id': ObjectId(id)})
-        
-    async def get_all(self) -> List[TestSchema]:
-        tests = await self.collection.find({}).to_list()
-        return [TestSchema(**test) for test in tests]
-    
-    async def delete_test(self, id: str) -> None | NoReturn:
-        result = await self.collection.find_one_and_delete({'_id': ObjectId(id)})
-        if not result:
-            raise ValueError(f'Test with ID {id} not found')
-    
-    async def add_question(self,
-                           id: str,
-                           part_name: str,
-                           category: str,
-                           level: int,
-                           data: QuestionSchema) -> None | NoReturn:
-        await self.collection.update_one(
-            {'_id': ObjectId(id)},
-            {'$push': {f'data.{part_name}.{category}.{level}': data.model_dump()}})
-    
-    async def update_question(self,
-                              id: str,
-                              part_name: str,
-                              category: str,
-                              level: int,
-                              data: QuestionSchema) -> None | NoReturn:
-        await self.collection.update_one(
-            {'_id': ObjectId(id)},
-            {'$set': {f'data.{part_name}.{category}.{level}': data.model_dump()}})
+    async def insert_question(self, data: AddQuestionRequest) -> Self | NoReturn:
+        part_name: str = data.part_name
+        category: str = data.category
+        level: int | None = data.level
+        question_index: int | None = data.number
+        if self.data is None:
+            self.data = dict()
+        if part_name not in self.data:
+            self.data[part_name] = dict()
+        if category not in self.data[part_name]:
+            self.data[part_name][category] = dict()
+        if level is None:
+            keys = self.data[part_name][category].keys()
+            level = 1 if not keys else max(keys) + 1
+        if level not in self.data[part_name][category].keys():
+            self.data[part_name][category][level] = dict()
+            self.data[part_name][category] = dict(sorted(self.data[part_name][category].items()))
+        if question_index is None:
+            keys = self.data[part_name][category][level].keys()
+            question_index = 1 if not keys else max(keys) + 1
+        if question_index not in self.data[part_name][category][level].keys():
+            self.data[part_name][category][level][question_index] = None
+            self.data[part_name][category][level] = dict(sorted(self.data[part_name][category][level].items()))
+        data = QuestionSchema.model_validate(data)
+        self.data[part_name][category][level][question_index] = data
+        return await self.save()
 
-    async def delete_question(self,
-                              id: str,
-                              part_name: str,
-                              category: str,
-                              level: int,
-                              index: int) -> None | NoReturn:
-        await self.collection.update_one(
-            {'_id': ObjectId(id)},
-            {'$set': {f'data.{part_name}.{category}.{level}.{index}': None}})
+    @classmethod
+    async def get_all(cls) -> List[Self]:
+        return await cls.find_all().to_list()
         
-    async def add_level(self,
-                        id: str,
-                        part_name: str,
-                        category: str,
-                        data: List[QuestionSchema]) -> None | NoReturn:
-        await self.collection.update_one(
-            {'_id': ObjectId(id)},
-            {'$push': {f'data.{part_name}.{category}': data}})
+    @classmethod
+    async def delete(cls, id: str) -> None | NoReturn:
+        await cls.find_one(ObjectId(id)).delete()
     
-    async def update_level(self,
-                           id: str,
-                           part_name: str,
-                           category: str,
-                           level: int,
-                           data: List[QuestionSchema]) -> None | NoReturn:
-        await self.collection.update_one(
-            {'_id': ObjectId(id)},
-            {'$set': {f'data.{part_name}.{category}.{level}': [x.model_dump() for x in data]}})
-    
-    async def delete_level(self,
-                           id: str,
-                           part_name: str,
-                           category: str,
-                           level: int) -> None | NoReturn:
-        await self.collection.update_one(
-            {'_id': ObjectId(id)},
-            {'$set': {f'data.{part_name}.{category}.{level}': None}})
-    
-    async def update_category(self,
-                              id: str,
-                              part_name: str,
-                              category: str,
-                              data: List[List[QuestionSchema]]) -> None | NoReturn:
-        await self.collection.update_one(
-            {'_id': ObjectId(id)},
-            {'$set': {f'data.{part_name}.{category}': [[x.model_dump() for x in data[index]] for index in range(data)]}})
-    
-    async def delete_category(self,
-                              id: str,
-                              part_name: str,
-                              category: str) -> None | NoReturn:
-        await self.collection.update_one(
-            {'_id': ObjectId(id)},
-            {'$unset': {f'data.{part_name}.{category}': None}})
-    
-    async def update_part_name(self,
-                               id: str,
-                               part_name: str,
-                               data: Dict[str, List[List[QuestionSchema]]]) -> None | NoReturn:
-        await self.collection.update_one(
-            {'_id': ObjectId(id)},
-            {'$set': {f'data.{part_name}': {key: [[x.model_dump() for x in value[index]] for index in range(value)] for key, value in data.items()}}},)

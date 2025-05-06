@@ -1,55 +1,45 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pymongo.errors import DuplicateKeyError
-from utils.session_validator import get_session_key, verify_role, get_current_user
-from database.users import UsersOrm
-from database.facilities import FacilitiesOrm, FacilitySchema
-from models.facilities import AddFacilityRequest
+from utils.session_validator import get_session_key, verify_role
+from database.facilities import Facility
+from models.facilities import AddFacilityRequest, FacilityResponse
 from typing import List
 
 
 router = APIRouter(prefix='/facilities', tags=['Facilities'])
 
 
-@router.get('/', response_model=List[FacilitySchema])
-async def get_all(session_key: str = Depends(get_session_key),
-                  userorm: UsersOrm = Depends(UsersOrm.get_orm),
-                  facilityorm: FacilitiesOrm = Depends(FacilitiesOrm.get_orm)):
-    await get_current_user(session_key, userorm)
-    facilities = await facilityorm.get_all()
+@router.get('/', response_model=List[FacilityResponse])
+async def get_all(session_key: str = Depends(get_session_key)):
+    await verify_role(session_key)
+    facilities = await Facility.get_all()
+    facilities = [FacilityResponse.model_validate(f) for f in facilities]
     return facilities
 
-@router.get('/@{id}', response_model=FacilitySchema)
-async def get_one(id: str,
-                  session_key: str = Depends(get_session_key),
-                  userorm: UsersOrm = Depends(UsersOrm.get_orm),
-                  facilityorm: FacilitiesOrm = Depends(FacilitiesOrm.get_orm)):
-    await get_current_user(session_key, userorm)
+@router.get('/@{id}', response_model=FacilityResponse)
+async def get_one(id: str, session_key: str = Depends(get_session_key)):
+    await verify_role(session_key)
     try:
-        facility = await facilityorm.get_one(id)
+        facility = await Facility.get_one(id)
+        return FacilityResponse.model_validate(facility)
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
-    return facility
 
 @router.delete('/@{id}')
-async def delete_one(id: str,
-                     session_key: str = Depends(get_session_key),
-                     userorm: UsersOrm = Depends(UsersOrm.get_orm),
-                     facilityorm: FacilitiesOrm = Depends(FacilitiesOrm.get_orm)):
-    await verify_role(session_key, userorm, possible_roles=['Admin'])
+async def delete_one(id: str, session_key: str = Depends(get_session_key)):
+    await verify_role(session_key, possible_roles=['Admin'])
     try:
-        await facilityorm.delete_one(id)
+        await Facility.delete_one(id)
+        return
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
-    return
 
-@router.post('/add', response_model=FacilitySchema)
+@router.post('/add', response_model=FacilityResponse)
 async def add_one(data: AddFacilityRequest,
-                  session_key: str = Depends(get_session_key),
-                  userorm: UsersOrm = Depends(UsersOrm.get_orm),
-                  facilityorm: FacilitiesOrm = Depends(FacilitiesOrm.get_orm)):
-    await verify_role(session_key, userorm, possible_roles=['Admin'])
+                  session_key: str = Depends(get_session_key)):
+    await verify_role(session_key, possible_roles=['Admin'])
     try:
-        facility = await facilityorm.add_one(FacilitySchema(**data.model_dump()))
+        facility = await Facility.add_one(data)
+        return facility
     except DuplicateKeyError:
         raise HTTPException(409, detail='Facility already exists')
-    return facility
