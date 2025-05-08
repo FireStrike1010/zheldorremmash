@@ -55,11 +55,11 @@ class User(Document):
     async def register_new_session_key(self, session_key: str) -> None:
         self.last_login = datetime.now()
         self.api_session_key = session_key
-        await self.save()
+        await self.sync()
 
     async def unregister_session_key(self) -> None:
         self.api_session_key = None
-        await self.save()
+        await self.sync()
     
     async def update_parameters(self, **kwargs) -> None | NoReturn:
         '''Super unsafe behavior XD, always validate passing parameters'''
@@ -71,8 +71,9 @@ class User(Document):
     async def update_by_username(cls, username: str, new_data: UpdateUserRequest) -> Self | NoReturn:
         user = await cls.find_one(cls.username == username)
         if not user:
-            raise ValueError(f'User with username {username} not found') 
-        return await user.set(new_data.model_dump(exclude_unset=True))
+            raise ValueError(f'User with username {username} not found')
+        await user.set(new_data.model_dump(exclude_unset=True))
+        return await user.save()
     
     @classmethod
     async def get_one_by_session_key(cls, session_key: str) -> Self | NoReturn:

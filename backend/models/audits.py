@@ -11,13 +11,14 @@ class QuickAuditResponse(BaseModel):
     name: str = Field(description='Name of audit')
     start_datetime: Optional[datetime] = Field(description='Start datetime of audit')
     end_datetime: Optional[datetime] = Field(description='End datetime of audit')
+    is_active: bool = Field(description='Is audit available to fill')
     created_at: datetime = Field(description='Datetime of creation')
 
 
 class CreateAuditRequest(BaseModel):
     name: str = Field(description='Name of audit')
     description: Optional[str] = Field(default=None, description='Additional info about audit')
-    facility: PyObjectId = Field(description='ID of facility in Mongo DB')
+    facility_id: PyObjectId = Field(description='ID of facility in Mongo DB')
     start_datetime: Optional[datetime] = Field(description='Audit start datetime')
     end_datetime: Optional[datetime] = Field(description='Audit end datetime')
     activation: Literal['on_demand', 'by_datetime'] = Field(description='System that opens audit for completion. "on_demand" - controlled by audit_leader or admin, "by_datetime" - automatic controlled by current time')
@@ -51,3 +52,16 @@ class FillQuestionRequest(BaseModel):
     question_number: int = Field()
     result: Any = Field()
     comment: Optional[str] = Field()
+
+class AuditOutputResponse(BaseModel):
+    id: PyObjectId = Field()
+    name: str = Field()
+    facility_name: str = Field()
+    facility_id: PyObjectId = Field()
+    test_name: str = Field()
+    test_id: PyObjectId = Field()
+    results: Dict[str, Dict[str, Dict[int, Dict[int, Any]]]] = Field()
+    comments: Dict[str, Dict[str, Dict[int, Dict[int, Optional[str]]]]] = Field()
+    start_datetime: Optional[datetime] = Field()
+    end_datetime: Optional[datetime] = Field()
+    is_active: bool = Field()
