@@ -55,11 +55,11 @@ class User(Document):
     async def register_new_session_key(self, session_key: str) -> None:
         self.last_login = datetime.now()
         self.api_session_key = session_key
-        await self.sync()
+        await self.save()
 
     async def unregister_session_key(self) -> None:
         self.api_session_key = None
-        await self.sync()
+        await self.save()
     
     async def update_parameters(self, **kwargs) -> None | NoReturn:
         '''Super unsafe behavior XD, always validate passing parameters'''

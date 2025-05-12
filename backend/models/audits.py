@@ -13,6 +13,7 @@ class QuickAuditResponse(BaseModel):
     end_datetime: Optional[datetime] = Field(description='End datetime of audit')
     is_active: bool = Field(description='Is audit available to fill')
     created_at: datetime = Field(description='Datetime of creation')
+    im_leader: bool = Field(description="Am i leader of audit")
 
 
 class CreateAuditRequest(BaseModel):

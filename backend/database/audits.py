@@ -53,7 +53,7 @@ class Audit(Document):
                 changed_status = False
             if audit.is_active != changed_status: 
                 audit.is_active = changed_status
-                await audit.sync()
+                await audit.save()
 
     async def _validate_participant(self, user: User) -> Dict[str, List[str]]:
         data: Dict[str, List[str]] = dict()
@@ -178,7 +178,7 @@ class Audit(Document):
             if audit.activation == 'by_datetime':
                 raise ValueError('Activation of this audit meant to be "by_datetime", so it cant be activated/deactivated by leader')
             audit.is_active = data
-            await audit.sync()
+            await audit.save()
         else:
             raise PermissionError('You are not leader of this audit')
     
@@ -191,7 +191,7 @@ class Audit(Document):
                 raise PermissionError(f"You dont have permission to fill that question (you're not auditor for {question.part_name} - {question.category})")
             self.results[question.part_name][question.category][question.level][question.question_number] = question.result
             self.comments[question.part_name][question.category][question.level][question.question_number] = question.comment
-        await self.sync()
+        await self.save()
 
     async def get_results(self, user: User) -> AuditOutputResponse:
         if user.role != 'Admin' and not self.results_access:
@@ -220,3 +220,8 @@ class Audit(Document):
             end_datetime=self.end_datetime,
             is_active=self.is_active
         )
+
+    @classmethod
+    async def delete_one(cls, id: str) -> None | NoReturn:
+        audit = await cls._get_one(id)
+        await audit.delete()

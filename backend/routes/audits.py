@@ -46,7 +46,7 @@ async def fill_questions(id: str, data: List[FillQuestionRequest], session_key: 
 async def get_my_audits(type: Literal['future', 'active', 'passed', 'all'], session_key: str = Depends(get_session_key)):
     user = await get_current_user(session_key)
     audits = await Audit.get_my_audits(user, which=type)
-    return [QuickAuditResponse.model_validate(audit) for audit in audits]
+    return [QuickAuditResponse.model_validate(audit, im_leader=(user.username == audit.audit_leader)) for audit in audits]
 
 @router.post('/@{id}/set_active/{data}')
 async def change_activity(id: str, data: bool, session_key: str = Depends(get_session_key)):
@@ -68,3 +68,12 @@ async def get_results(id: str, session_key: str = Depends(get_session_key)):
         raise HTTPException(404, detail=str(e))
     except PermissionError as e:
         raise HTTPException(403, detail=str(e))
+
+@router.delete('/@{id}')
+async def delete(id: str, session_key: str = Depends(get_session_key)):
+    await verify_role(session_key, possible_roles=['Admin', 'Moderator'])
+    try:
+        await Audit.delete_one(id)
+        return
+    except ValueError as e:
+        raise HTTPException(404, detail=str(e))

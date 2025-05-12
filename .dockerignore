@@ -1,0 +1,9 @@
+.venv
+
+.vscode
+
+tests
+
+backend/.env
+
+backend/ParseExcel.ipynb
