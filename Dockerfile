@@ -20,4 +20,4 @@ RUN uv venv && \
     uv pip install -e .
 
 EXPOSE 8000
-CMD ["sh", "-c", "source .venv/bin/activate && cd backend && uvicorn docker-app:app --host 0.0.0.0 --port 8000 --reload"]
+CMD ["sh", "-c", "source .venv/bin/activate && cd backend && uvicorn docker-app:app --host 0.0.0.0 --port 8000"]

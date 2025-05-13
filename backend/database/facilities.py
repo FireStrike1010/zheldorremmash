@@ -10,7 +10,8 @@ class Facility(Document):
 
     class Settings:
         name = "Facilities"
-        use_cache = True
+        use_cache = False
+        use_state_management = True
 
     @classmethod
     async def add_one(cls, facility: AddFacilityRequest) -> Self | NoReturn:
@@ -27,10 +28,3 @@ class Facility(Document):
         if not facility:
             raise ValueError(f'Facility with ID {id} not found')
         return facility
-
-    @classmethod
-    async def delete_one(cls, id: str) -> None | NoReturn:
-        facility = await cls.get(ObjectId(id))
-        if not facility:
-            raise ValueError(f'Facility with ID {id} not found')
-        await facility.delete()

@@ -62,7 +62,7 @@ async def patch(username: str, data: UpdateUserRequest, session_key: str = Depen
         if 'password' in data.keys():
             data['password'] = hash_password(data['password'])
         try:
-            await user.update_parameters(**data)
+            await user.update_params(**data)
             return UserResponse.model_validate(user)
         except ValidationError as e:
             raise HTTPException(400, detail=str(e))

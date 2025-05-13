@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pymongo.errors import DuplicateKeyError
-from models.tests import AddTestRequest, QuickTest, TestResponse, AddQuestionRequest, DeleteQuestionRequest
+from models.tests import AddTestRequest, QuickTest, TestResponse, AddQuestionRequest, RemoveRequest
 from utils.session_validator import verify_role, get_session_key
 from typing import List
 from database import Test
@@ -53,14 +53,14 @@ async def insert_question(id: str, data: AddQuestionRequest, session_key: str = 
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
 
-@router.delete('/@{id}/delete_question', response_model=TestResponse)
-async def delete_question(id: str, data: DeleteQuestionRequest, session_key: str = Depends(get_session_key)):
-    await verify_role(session_key, possible_roles=['Admin'])
-    try:
-        test = await Test.get_one(id)
-        test = await test.delete_question(data)
-        return TestResponse.model_validate(test)
-    except ValueError as e:
-        raise HTTPException(404, detail=str(e))
+#@router.delete('/@{id}/remove', response_model=TestResponse)
+#async def delete_question(id: str, data: RemoveRequest, session_key: str = Depends(get_session_key)):
+#    await verify_role(session_key, possible_roles=['Admin'])
+#    try:
+#        test = await Test.get_one(id)
+#        await test.remove(data)
+#        return TestResponse.model_validate(test)
+#    except ValueError as e:
+#        raise HTTPException(404, detail=str(e))
 
 

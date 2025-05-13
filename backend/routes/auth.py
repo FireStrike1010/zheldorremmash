@@ -34,5 +34,4 @@ async def update_password(data: UpdatePasswordRequest, session_key: str = Depend
     user = await get_current_user(session_key)
     if not verify_password(data.old_password, user.password):
         raise HTTPException(401, 'Invalid old password')
-    user.password = hash_password(data.new_password)
-    await user.save()
+    await user.update_params(password=hash_password(data.new_password))

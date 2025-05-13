@@ -29,8 +29,8 @@ async def get_one(id: str, session_key: str = Depends(get_session_key)):
 async def delete_one(id: str, session_key: str = Depends(get_session_key)):
     await verify_role(session_key, possible_roles=['Admin'])
     try:
-        await Facility.delete_one(id)
-        return
+        facility = await Facility.get_one(id)
+        await facility.delete()
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
 

@@ -7,12 +7,11 @@ from typing import Literal, List
 router = APIRouter(prefix='/audits', tags=['Audits'])
 
 
-@router.post('/add', response_model=QuickAuditResponse)
+@router.post('/add')
 async def add_one(data: CreateAuditRequest, session_key: str = Depends(get_session_key)):
     await verify_role(session_key, possible_roles=['Admin', 'Moderator'])
     try:
-        audit = await Audit.create(data)
-        return QuickAuditResponse.model_validate(audit)
+        await Audit.create(data)
     except ValueError as e:
         raise HTTPException(400, detail=str(e))
 
@@ -33,7 +32,7 @@ async def get(id: str, session_key: str = Depends(get_session_key)):
 async def fill_questions(id: str, data: List[FillQuestionRequest], session_key: str = Depends(get_session_key)):
     user = await get_current_user(session_key)
     try:
-        audit = await Audit._get_one(id)
+        audit = await Audit.get_one(id, fetch_links=True)
         await audit.fill_questions(user, data)
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
@@ -46,13 +45,14 @@ async def fill_questions(id: str, data: List[FillQuestionRequest], session_key: 
 async def get_my_audits(type: Literal['future', 'active', 'passed', 'all'], session_key: str = Depends(get_session_key)):
     user = await get_current_user(session_key)
     audits = await Audit.get_my_audits(user, which=type)
-    return [QuickAuditResponse.model_validate(audit, im_leader=(user.username == audit.audit_leader)) for audit in audits]
+    return audits
 
 @router.post('/@{id}/set_active/{data}')
 async def change_activity(id: str, data: bool, session_key: str = Depends(get_session_key)):
     user = await get_current_user(session_key)
     try:
-        await Audit.change_activity(id, user, data)
+        audit = await Audit.get_one(id)
+        await audit.change_activity(id, user, data)
     except ValueError as e:
         raise HTTPException(403, detail=str(e))
     except PermissionError as e:
@@ -62,7 +62,7 @@ async def change_activity(id: str, data: bool, session_key: str = Depends(get_se
 async def get_results(id: str, session_key: str = Depends(get_session_key)):
     user = await get_current_user(session_key)
     try:
-        audit = await Audit._get_one(id)
+        audit = await Audit.get_one(id, fetch_links=True)
         return await audit.get_results(user)
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
@@ -74,6 +74,5 @@ async def delete(id: str, session_key: str = Depends(get_session_key)):
     await verify_role(session_key, possible_roles=['Admin', 'Moderator'])
     try:
         await Audit.delete_one(id)
-        return
     except ValueError as e:
         raise HTTPException(404, detail=str(e))

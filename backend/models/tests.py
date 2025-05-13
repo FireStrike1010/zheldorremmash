@@ -46,5 +46,8 @@ class TestResponse(QuickTest):
 class AddQuestionRequest(QuestionBaseRequest):
     question: QuestionSchema
 
-class DeleteQuestionRequest(QuestionBaseRequest):
-    pass
+class RemoveRequest(BaseModel):
+    part_name: Optional[str] = Field(description="Part name (first nested key entry)")
+    category: Optional[str] = Field(description="Category (second nested key entry)")
+    level: Optional[int] = Field(default=None, description="Level (third nested number (starting from 1) entry)")
+    number: Optional[int] = Field(default=None, description="Number of question (fourth and last nested number (started from 1) entry)")

@@ -2,7 +2,7 @@ from typing import Optional, Self, Literal, List, NoReturn, Dict, Any, OrderedDi
 from pydantic import BaseModel, Field, ConfigDict
 from beanie import Document, Indexed
 from datetime import datetime, timedelta
-from models.tests import AddTestRequest, AddQuestionRequest
+from models.tests import AddTestRequest, AddQuestionRequest, RemoveRequest
 from bson import ObjectId
 
 
@@ -26,7 +26,8 @@ class Test(Document):
     
     class Settings:
         name = "Tests"
-        use_cache = True
+        use_cache = False
+        use_state_management = True
         cache_expiration_time = timedelta(days=3)
     
     @classmethod
@@ -66,13 +67,9 @@ class Test(Document):
             self.data[part_name][category][level] = dict(sorted(self.data[part_name][category][level].items()))
         data = QuestionSchema.model_validate(data)
         self.data[part_name][category][level][question_index] = data
-        return await self.save()
+        return await self.save_changes()
 
     @classmethod
     async def get_all(cls) -> List[Self]:
         return await cls.find_all().to_list()
-        
-    @classmethod
-    async def delete(cls, id: str) -> None | NoReturn:
-        await cls.find_one(ObjectId(id)).delete()
     
