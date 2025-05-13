@@ -59,9 +59,9 @@ class Audit(Document):
                 if user.role == 'Admin':
                     found_categories.append(category)
                 else:
-                    if not all(link.is_fetched for link in user_links):
-                        users = await asyncio.gather(*[link.fetch() for link in user_links])
-                    if user in users:
+                    users = await asyncio.gather(*[link.fetch() for link in user_links])
+                    users = [u.username for u in users]
+                    if user.username in users:
                         found_categories.append(category)
             if found_categories:
                 data[part_name] = found_categories
@@ -181,7 +181,7 @@ class Audit(Document):
         else:
             for audit in audits:
                 permissions = await audit._validate_participant(user)
-                if len(permissions) == 0:
+                if len(permissions) == 0 and (await audit.audit_leader.fetch()).username != user.username:
                     continue
                 audit = QuickAuditResponse(
                     id=audit.id,
