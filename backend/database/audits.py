@@ -123,23 +123,28 @@ class Audit(Document):
         processed_questions: Dict[str, Dict[str, Dict[int, Dict[int, ProcessedQuestion]]]] = dict()
         #shit code
         for part_name, categories in permissions.items():
-            if part_name not in processed_questions:
-                processed_questions[part_name] = dict()
+            processed_questions[part_name] = dict()
             for category in categories:
-                if category not in processed_questions[part_name]:
-                    processed_questions[part_name][category] = dict()
-                for level, questions in audit.test.data[part_name][category].items():
-                    if level not in processed_questions[part_name][category]:
-                        processed_questions[part_name][category][level] = dict()
-                    for question_number, question in questions.items():
-                        if question_number not in processed_questions[part_name][category][level]:
-                            processed_questions[part_name][category][level] = dict()
-                        processed_question = ProcessedQuestion(
-                            **question.model_dump(),
-                            result=audit.results[part_name][category][level][question_number],
-                            comment=audit.comments[part_name][category][level][question_number]
-                        )
-                        processed_questions[part_name][category][level][question_number] = processed_question
+                processed_questions[part_name][category] = dict()
+        print(processed_questions)
+        def process_question(d, part_name: str, category: str, level: int, question_number: int) -> ProcessedQuestion:
+            return ProcessedQuestion(
+                **d.model_dump(),
+                result=audit.results[part_name][category][level][question_number],
+                comment=audit.comments[part_name][category][level][question_number]
+                )
+        for part_name in processed_questions:
+            for category in processed_questions[part_name]:
+                qs = audit.test.data[part_name][category]
+                qs_rebuilt = {l: {q: process_question(
+                    d=qs[l][q],
+                    part_name=part_name,
+                    category=category,
+                    level=l,
+                    question_number=q
+                    ) for q in qs[l]} for l in qs}
+                processed_questions[part_name][category] = qs_rebuilt.copy()
+
         response = ComputedAuditResponse(
             id=audit.id,
             name=audit.name,
