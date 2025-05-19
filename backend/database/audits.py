@@ -27,6 +27,7 @@ class Audit(Document):
     activation: Literal['on_demand', 'by_datetime']
     results_access: bool
     auditors: Dict[str, Dict[str, List[Link[User]]]]
+    _fetched_auditors: Dict[str, Dict[str, List[str]]]
     results: Dict[str, Dict[str, Dict[int, Dict[int, Any]]]]
     comments: Dict[str, Dict[str, Dict[int, Dict[int, Optional[str]]]]]
     test: Link[Test]
@@ -53,14 +54,17 @@ class Audit(Document):
 
     async def _validate_participant(self, user: User) -> Dict[str, List[str]]:
         data: Dict[str, List[str]] = dict()
+        self._fetched_auditors = {}
         for part_name, values in self.auditors.items():
+            self._fetched_auditors[part_name] = {}
             found_categories = []
             for category, user_links in values.items():
+                users = await asyncio.gather(*[link.fetch() for link in user_links])
+                users = [u.username for u in users]
+                self._fetched_auditors[part_name][category] = users
                 if user.role == 'Admin':
                     found_categories.append(category)
                 else:
-                    users = await asyncio.gather(*[link.fetch() for link in user_links])
-                    users = [u.username for u in users]
                     if user.username in users:
                         found_categories.append(category)
             if found_categories:
@@ -117,7 +121,7 @@ class Audit(Document):
         audit = await cls.get_one(id, fetch_links=True)
         if not audit.is_active:
             raise TimeoutError("Audit is closed for filling")
-        permissions = await cls._validate_participant(audit, user)
+        permissions = await audit._validate_participant(user)
         if len(permissions) == 0:
             raise PermissionError("You are not participant of this audit")
         processed_questions: Dict[str, Dict[str, Dict[int, Dict[int, ProcessedQuestion]]]] = dict()
@@ -126,7 +130,6 @@ class Audit(Document):
             processed_questions[part_name] = dict()
             for category in categories:
                 processed_questions[part_name][category] = dict()
-        print(processed_questions)
         def process_question(d, part_name: str, category: str, level: int, question_number: int) -> ProcessedQuestion:
             return ProcessedQuestion(
                 **d.model_dump(),
@@ -151,7 +154,8 @@ class Audit(Document):
             description=audit.description,
             start_datetime=audit.start_datetime,
             end_datetime=audit.end_datetime,
-            audit_leader=None if audit.audit_leader is None else audit.audit_leader.username,
+            audit_leader=audit.audit_leader.username if audit.audit_leader else None,
+            auditors=audit._fetched_auditors,
             test_name=audit.test.name,
             facility_name=audit.facility.short_name,
             data=processed_questions
@@ -176,6 +180,7 @@ class Audit(Document):
                 audit = QuickAuditResponse(
                     id=audit.id,
                     name=audit.name,
+                    facility=(await audit.facility.fetch()).short_name,
                     start_datetime=audit.start_datetime,
                     end_datetime=audit.end_datetime,
                     is_active=audit.is_active,
@@ -195,13 +200,13 @@ class Audit(Document):
                     end_datetime=audit.end_datetime,
                     is_active=audit.is_active,
                     created_at=audit.created_at,
-                    change_activity=(True if (await audit.audit_leader.fetch()).username == user.username else False),
+                    change_activity=(True if ((await audit.audit_leader.fetch()).username == user.username and audit.activation == 'on_demand') else False),
                     my_permissions=permissions
                 )
                 filtered_audits.append(audit)
         return filtered_audits
     
-    async def change_activity(self, id: str, user: User, data: bool) -> None | NoReturn:
+    async def change_activity(self, user: User, data: bool) -> None | NoReturn:
         if user.role == 'Admin' or user.username == (await self.audit_leader.fetch()).username:
             if self.activation == 'by_datetime':
                 raise ValueError('Activation of this audit meant to be "by_datetime", so it cant be activated/deactivated by leader')
@@ -246,7 +251,9 @@ class Audit(Document):
             comments=filtered_comments,
             start_datetime=self.start_datetime,
             end_datetime=self.end_datetime,
-            is_active=self.is_active
+            is_active=self.is_active,
+            auditors=self._fetched_auditors,
+            audit_leader=self.audit_leader.username if self.audit_leader else None
         )
 
     @classmethod
