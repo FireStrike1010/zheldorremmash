@@ -15,6 +15,7 @@ class QuickAuditResponse(BaseModel):
     is_active: bool = Field(description='Is audit available to fill')
     created_at: datetime = Field(description='Datetime of creation')
     change_activity: bool = Field(description="Can i change activity of audit")
+    results_access: bool = Field(description="Can i access results")
     my_permissions: Optional[Dict[str, List[str]]] = Field(default=None, description="My part names and categories for audit")
 
 
@@ -71,3 +72,4 @@ class AuditOutputResponse(BaseModel):
     is_active: bool = Field()
     audit_leader: Optional[str] = Field(default=None)
     auditors: Dict[str, Dict[str, List[str]]] = Field()
+    auditors_full_names: Dict[str, Dict[str, List[str]]] = Field()

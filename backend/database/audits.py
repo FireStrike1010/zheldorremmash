@@ -28,6 +28,7 @@ class Audit(Document):
     results_access: bool
     auditors: Dict[str, Dict[str, List[Link[User]]]]
     _fetched_auditors: Dict[str, Dict[str, List[str]]]
+    _fetched_auditors_full_names: Dict[str, Dict[str, List[str]]]
     results: Dict[str, Dict[str, Dict[int, Dict[int, Any]]]]
     comments: Dict[str, Dict[str, Dict[int, Dict[int, Optional[str]]]]]
     test: Link[Test]
@@ -55,12 +56,16 @@ class Audit(Document):
     async def _validate_participant(self, user: User) -> Dict[str, List[str]]:
         data: Dict[str, List[str]] = dict()
         self._fetched_auditors = {}
+        self._fetched_auditors_full_names = {}
         for part_name, values in self.auditors.items():
             self._fetched_auditors[part_name] = {}
+            self._fetched_auditors_full_names[part_name] = {}
             found_categories = []
             for category, user_links in values.items():
                 users = await asyncio.gather(*[link.fetch() for link in user_links])
+                users_full_names = [f"{u.surname} {u.name} {u.patronymic if u.patronymic else ''}".rstrip() for u in users]
                 users = [u.username for u in users]
+                self._fetched_auditors_full_names[part_name][category] = users_full_names
                 self._fetched_auditors[part_name][category] = users
                 if user.role == 'Admin':
                     found_categories.append(category)
@@ -185,7 +190,8 @@ class Audit(Document):
                     end_datetime=audit.end_datetime,
                     is_active=audit.is_active,
                     created_at=audit.created_at,
-                    change_activity=True
+                    change_activity=True,
+                    results_access=True
                 )
                 filtered_audits.append(audit)
         else:
@@ -201,6 +207,7 @@ class Audit(Document):
                     is_active=audit.is_active,
                     created_at=audit.created_at,
                     change_activity=(True if ((await audit.audit_leader.fetch()).username == user.username and audit.activation == 'on_demand') else False),
+                    results_access=audit.results_access,
                     my_permissions=permissions
                 )
                 filtered_audits.append(audit)
@@ -253,6 +260,7 @@ class Audit(Document):
             end_datetime=self.end_datetime,
             is_active=self.is_active,
             auditors=self._fetched_auditors,
+            auditors_full_names=self._fetched_auditors_full_names,
             audit_leader=self.audit_leader.username if self.audit_leader else None
         )
 
