@@ -18,24 +18,32 @@ class QuickAuditResponse(BaseModel):
     results_access: bool = Field(description="Can i access results")
     my_permissions: Optional[Dict[str, List[str]]] = Field(default=None, description="My part names and categories for audit")
 
-
 class CreateAuditRequest(BaseModel):
     name: str = Field(description='Name of audit')
     description: Optional[str] = Field(default=None, description='Additional info about audit')
     facility_id: PyObjectId = Field(description='ID of facility in Mongo DB')
-    start_datetime: Optional[datetime] = Field(description='Audit start datetime')
-    end_datetime: Optional[datetime] = Field(description='Audit end datetime')
+    start_datetime: Optional[datetime] = Field(default=None, description='Audit start datetime')
+    end_datetime: Optional[datetime] = Field(default=None, description='Audit end datetime')
     activation: Literal['on_demand', 'by_datetime'] = Field(description='System that opens audit for completion. "on_demand" - controlled by audit_leader or admin, "by_datetime" - automatic controlled by current time')
     results_access: bool = Field(description='Give the access to results to auditors')
-    audit_leader: Optional[str] = Field(description='Username of audit leader')
+    audit_leader: Optional[str] = Field(default=None, description='Username of audit leader')
     test_id: PyObjectId = Field(description='ID of test in Mongo DB')
     auditors: Dict[str, Dict[str, List[str]]] = Field(description='[part_name[category[usernames_of_auditors]]]')
 
+class EditAuditRequest(BaseModel):
+    name: Optional[str] = Field(default=None, description='Name of audit')
+    description: Optional[str] = Field(default=None, description='Additional info about audit')
+    facility_id: Optional[PyObjectId] = Field(default=None, description='ID of facility in Mongo DB')
+    start_datetime: Optional[datetime] = Field(default=None, description='Audit start datetime')
+    end_datetime: Optional[datetime] = Field(default=None, description='Audit end datetime')
+    activation: Optional[Literal['on_demand', 'by_datetime']] = Field(default=None, description='System that opens audit for completion. "on_demand" - controlled by audit_leader or admin, "by_datetime" - automatic controlled by current time')
+    results_access: Optional[bool] = Field(default=None, description='Give the access to results to auditors')
+    audit_leader: Optional[str] = Field(default=None, description='Username of audit leader')
+    auditors: Optional[Dict[str, Dict[str, List[str]]]] = Field(default=None, description='[part_name[category[usernames_of_auditors]]]')
 
 class ProcessedQuestion(QuestionSchema):
     result: Optional[Any] = Field(default=None, description='Result (answer)')
     comment: Optional[str] = Field(default=None, description='Comment to question')
-
 
 class ComputedAuditResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -58,18 +66,26 @@ class FillQuestionRequest(BaseModel):
     result: Any = Field()
     comment: Optional[str] = Field()
 
-class AuditOutputResponse(BaseModel):
+class AuditResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: PyObjectId = Field()
     name: str = Field()
-    facility_name: str = Field()
+    description: str = Field()
     facility_id: PyObjectId = Field()
-    test_name: str = Field()
+    facility_name: str = Field()
     test_id: PyObjectId = Field()
-    results: Dict[str, Dict[str, Dict[int, Dict[int, Any]]]] = Field()
-    comments: Dict[str, Dict[str, Dict[int, Dict[int, Optional[str]]]]] = Field()
+    test_name: str = Field()
     start_datetime: Optional[datetime] = Field()
     end_datetime: Optional[datetime] = Field()
+    activation: Literal['on_demand', 'by_datetime'] = Field()
     is_active: bool = Field()
+    is_archived: bool = Field()
     audit_leader: Optional[str] = Field(default=None)
+    audit_leader_full_name: Optional[str] = Field(default=None)
     auditors: Dict[str, Dict[str, List[str]]] = Field()
     auditors_full_names: Dict[str, Dict[str, List[str]]] = Field()
+
+class AuditResultsResponse(AuditResponse):
+    model_config = ConfigDict(from_attributes=True)
+    results: Dict[str, Dict[str, Dict[int, Dict[int, Any]]]] = Field()
+    comments: Dict[str, Dict[str, Dict[int, Dict[int, Optional[str]]]]] = Field()

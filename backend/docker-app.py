@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
     app.state.client.close()
 
 
-app = FastAPI(lifespan=lifespan, root_path="/api", root_path_in_servers=False)
+app = FastAPI(lifespan=lifespan, root_path="/api", docs_url="/docs")
 
 app.add_middleware(
     CORSMiddleware,
@@ -46,7 +46,7 @@ app.add_middleware(
 )
 
 for router in routers:
-    app.include_router(router, prefix='/api')
+    app.include_router(router)
 
 @app.get('/')
 async def home():

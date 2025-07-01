@@ -8,9 +8,12 @@ import os
 def get_session_key(api_session_key: Annotated[str, Header(default_factory=str)]):
     return api_session_key
 
+def get_password(password: Annotated[str, Header(default_factory=str)]):
+    return password
+
 async def get_current_user(session_key: str) -> User | NoReturn:
     if session_key == os.getenv('MASTER_KEY'):
-        return User(username='DungeonMaster',
+        return User(username='root',
                     email='master@dungeon.com',
                     name='Master',
                     surname='God',

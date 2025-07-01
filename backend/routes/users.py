@@ -57,7 +57,7 @@ async def patch(username: str, data: UpdateUserRequest, session_key: str = Depen
         except ValueError as e:
             raise HTTPException(404, detail=str(e))
         data = data.model_dump(exclude_none=True)
-        if any(field in ('username', 'email', 'role', 'job_title', 'job_title', 'password') for field in data.keys()) and current_user.role != 'Admin':
+        if any(field in ('username', 'email', 'role', 'job_title', 'password') for field in data.keys()) and current_user.role != 'Admin':
             raise HTTPException(403, "You don't have that privilege, you must be Admin")
         if 'password' in data.keys():
             data['password'] = hash_password(data['password'])
