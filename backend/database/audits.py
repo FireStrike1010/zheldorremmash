@@ -102,6 +102,8 @@ class Audit(Document):
         facility = await Facility.get_one(data.facility_id)
         test = await Test.get_one(data.test_id)
         audit_leader = (await User.get_one_by_username(data.audit_leader)) if data.audit_leader else None
+        if audit_leader and audit_leader.role == 'Moderator':
+            raise ValueError("Moderators can't be assigned as audit leader")
         ### shit code
         auditors = dict()
         nested_nones = dict()
@@ -139,13 +141,14 @@ class Audit(Document):
     async def edit(self, data: EditAuditRequest) -> None | NoReturn:
         if self.is_archived:
             raise PermissionError(f"Audit {self.id} is archived - it can't be changed")
+        update_dict = {}
         if data.name is not None:
             self.name = data.name
         if data.description is not None:
             self.description = data.description
         if data.facility_id is not None:
             facility = await Facility.get_one(data.facility_id)
-            self.facility = facility.id
+            update_dict["facility"] = facility.id
         update_activity_flag = False
         if data.start_datetime is not None:
             self.start_datetime = data.start_datetime
@@ -164,22 +167,24 @@ class Audit(Document):
             self.results_access = data.results_access
         if data.audit_leader is not None:
             audit_leader = await User.get_one_by_username(data.audit_leader)
-            self.audit_leader = audit_leader.id
+            if audit_leader.role == 'Moderator':
+                raise ValueError("Moderators can't be assigned as audit leader")
+            update_dict["audit_leader"] = audit_leader.id
         if data.auditors is not None:
-            self.test.fetch()
             auditors = dict()
             for part_name, values in data.auditors.items():
                 if part_name not in auditors:
                     auditors[part_name] = dict()
                 for category, usernames in values.items():
                     users = await asyncio.gather(*[User.get_one_by_username(username) for username in usernames])
-                    if any(u.role in ('Admin', 'Moderator') for u in users):
-                        raise ValueError("Admins and Moderators can't be assigned as auditor")
+                    if any(u.role == 'Moderator' for u in users):
+                        raise ValueError("Moderators can't be assigned as auditor")
                     auditors[part_name][category] = [user.id for user in users]
                     if part_name not in self.test.data or category not in self.test.data[part_name]:
                         raise ValueError(f"Test {self.test.name} doesn't have {part_name} with {category}")
-            self.auditors = auditors
-        self.save_changes()
+            update_dict["auditors"] = auditors  
+        await self.save_changes()
+        await self.set(update_dict)
 
     @classmethod
     async def delete_one(cls, id: str) -> None | NoReturn:
@@ -241,23 +246,25 @@ class Audit(Document):
         return response
 
     @classmethod
-    async def get_my_audits(cls, user: User, which: Literal['future', 'active', 'passed', 'all'] = 'all') -> List[QuickAuditResponse]:
+    async def get_my_audits(cls, user: User, which: Literal['archived', 'planned', 'current', 'active', 'inactive', 'passed', 'all'] = 'all') -> List[QuickAuditResponse]:
         now = datetime.datetime.now()
         match which:
             case 'archived':
                 audits = await cls.find(cls.is_archived == True).to_list() # type: ignore  # noqa: E712
             case 'planned':
-                audits = await cls.find(cls.start_datetime > now, cls.is_active == False, cls.is_archived == False).to_list() # type: ignore  # noqa: E712
+                audits = await cls.find(cls.start_datetime > now, cls.is_archived == False).to_list() # type: ignore  # noqa: E712
             case 'current':
-                audits = await cls.find(cls.start_datetime <= now, cls.end_datetime >= now, cls.is_active == True).to_list() # type: ignore  # noqa: E712
+                audits = await cls.find(cls.start_datetime <= now, cls.end_datetime >= now, cls.is_archived == False).to_list() # type: ignore  # noqa: E712
             case 'active':
                 audits = await cls.find(cls.is_active == True).to_list() # type: ignore  # noqa: E712
             case 'inactive':
                 audits = await cls.find(cls.is_active == False).to_list() # type: ignore  # noqa: E712
+            case 'passed':
+                audits = await cls.find(cls.end_datetime < now, cls.is_archived == False).to_list() # type: ignore  # noqa: E712
             case 'all':
                 audits = await cls.find_all().to_list()
         filtered_audits = []
-        if user.role == 'Admin':
+        if user.role in ('Admin', 'Moderator'):
             for audit in audits:
                 facility_short_name = await audit.facility.fetch()
                 if not isinstance(facility_short_name, Facility):
@@ -272,9 +279,10 @@ class Audit(Document):
                     start_datetime=audit.start_datetime,
                     end_datetime=audit.end_datetime,
                     is_active=audit.is_active,
+                    is_archived=audit.is_archived,
                     created_at=audit.created_at,
                     change_activity=(audit.activation == 'on_demand' and not audit.is_archived),
-                    results_access=True
+                    results_access=True if user.role == 'Admin' else False
                 )
                 filtered_audits.append(audit)
         else:
@@ -300,6 +308,7 @@ class Audit(Document):
                     start_datetime=audit.start_datetime,
                     end_datetime=audit.end_datetime,
                     is_active=audit.is_active,
+                    is_archived=audit.is_archived,
                     created_at=audit.created_at,
                     change_activity=all(leader_username == user.username, audit.activation == 'on_demand', not audit.is_archived),
                     results_access=audit.results_access,
@@ -373,3 +382,8 @@ class Audit(Document):
         self.is_archived = True
         self.is_active = False
         await self.save_changes()
+    
+    @classmethod
+    async def nuke_collection(cls) -> int:
+        delete_result = await cls.get_motor_collection().delete_many({})
+        return delete_result.deleted_count

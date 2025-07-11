@@ -13,6 +13,7 @@ class QuickAuditResponse(BaseModel):
     start_datetime: Optional[datetime] = Field(description='Start datetime of audit')
     end_datetime: Optional[datetime] = Field(description='End datetime of audit')
     is_active: bool = Field(description='Is audit available to fill')
+    is_archived: bool = Field(description='Is audit archived')
     created_at: datetime = Field(description='Datetime of creation')
     change_activity: bool = Field(description="Can i change activity of audit")
     results_access: bool = Field(description="Can i access results")

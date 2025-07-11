@@ -22,8 +22,9 @@ async def add_one(data: CreateAuditRequest, session_key: str = Depends(get_sessi
 async def edit(data: EditAuditRequest, id: str, session_key: str = Depends(get_session_key)):
     await verify_role(session_key, ['Admin', 'Moderator'])
     try:
-        audit = await Audit.get_one(id, fetch_links=data)
+        audit = await Audit.get_one(id, fetch_links=True)
         await audit.edit(data)
+        audit = await Audit.get_one(id, fetch_links=True)
         return await audit.process()
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
@@ -65,7 +66,7 @@ async def fill_questions(id: str, data: List[FillQuestionRequest], session_key: 
         raise HTTPException(403, detail=str(e))
 
 @router.get('/my_audits/{type}', response_model=List[QuickAuditResponse])
-async def get_my_audits(type: Literal['archived', 'planned', 'current', 'active', 'inactive', 'all'], session_key: str = Depends(get_session_key)):
+async def get_my_audits(type: Literal['archived', 'planned', 'current', 'active', 'inactive', 'passed', 'all'], session_key: str = Depends(get_session_key)):
     user = await get_current_user(session_key)
     audits = await Audit.get_my_audits(user, which=type)
     return audits
@@ -110,5 +111,10 @@ async def to_archive(id: str, session_key: str = Depends(get_session_key), passw
         await audit.to_archive()
     else:
         raise HTTPException(401, detail='Invalid password')
-    
-    
+
+@router.delete('/nuke_collection')
+async def nuke_collection(session_key: str = Depends(get_session_key)):
+    user = await get_current_user(session_key)
+    if user.username != 'root':
+        raise HTTPException(403, "You don't have that privilege, you must use MASTER_KEY")
+    return await Audit.nuke_collection()
