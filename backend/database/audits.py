@@ -9,7 +9,7 @@ from models.audits import (CreateAuditRequest,
                            FillQuestionRequest,
                            AuditResponse,
                            AuditResultsResponse)
-from bson import ObjectId
+from bson import ObjectId, DBRef
 from database.tests import Test, QuestionSchema
 from database.users import User
 from database.facilities import Facility
@@ -141,14 +141,13 @@ class Audit(Document):
     async def edit(self, data: EditAuditRequest) -> None | NoReturn:
         if self.is_archived:
             raise PermissionError(f"Audit {self.id} is archived - it can't be changed")
-        update_dict = {}
         if data.name is not None:
             self.name = data.name
         if data.description is not None:
             self.description = data.description
         if data.facility_id is not None:
             facility = await Facility.get_one(data.facility_id)
-            update_dict["facility"] = facility.id
+            self.facility = facility
         update_activity_flag = False
         if data.start_datetime is not None:
             self.start_datetime = data.start_datetime
@@ -169,22 +168,30 @@ class Audit(Document):
             audit_leader = await User.get_one_by_username(data.audit_leader)
             if audit_leader.role == 'Moderator':
                 raise ValueError("Moderators can't be assigned as audit leader")
-            update_dict["audit_leader"] = audit_leader.id
+            self.audit_leader = audit_leader
         if data.auditors is not None:
             auditors = dict()
             for part_name, values in data.auditors.items():
                 if part_name not in auditors:
                     auditors[part_name] = dict()
+                if part_name not in self.results:
+                    self.results[part_name] = dict()
+                    self.comments[part_name] = dict()
                 for category, usernames in values.items():
                     users = await asyncio.gather(*[User.get_one_by_username(username) for username in usernames])
                     if any(u.role == 'Moderator' for u in users):
                         raise ValueError("Moderators can't be assigned as auditor")
-                    auditors[part_name][category] = [user.id for user in users]
+                    auditors[part_name][category] = [DBRef('Users', user.id) for user in users]
                     if part_name not in self.test.data or category not in self.test.data[part_name]:
                         raise ValueError(f"Test {self.test.name} doesn't have {part_name} with {category}")
-            update_dict["auditors"] = auditors  
+                    if part_name not in self.results:
+                        self.results[part_name] = {}
+                    if category not in self.results:
+                        nested_nones = {level: {question_number: None for question_number in questions.keys()} for level, questions in self.test.data[part_name][category].items()}
+                        self.results[part_name][category] = nested_nones
+                        self.comments[part_name][category] = nested_nones
+        self.auditors = auditors
         await self.save_changes()
-        await self.set(update_dict)
 
     @classmethod
     async def delete_one(cls, id: str) -> None | NoReturn:
@@ -192,11 +199,12 @@ class Audit(Document):
 
     @classmethod
     async def get_one(cls, id: str, fetch_links: bool = False) -> Self | NoReturn:
-        audit = await cls.get(ObjectId(id), fetch_links=fetch_links)
-        if fetch_links:
-            await audit._fetch_auditors()
+        audit = await cls.get(ObjectId(id))
         if audit is None:
             raise ValueError(f'Audit with ID {id} not found')
+        if fetch_links:
+            await audit.fetch_all_links()
+            await audit._fetch_auditors()
         return audit
     
     @classmethod
@@ -238,7 +246,7 @@ class Audit(Document):
             start_datetime=audit.start_datetime,
             end_datetime=audit.end_datetime,
             audit_leader=audit.audit_leader.username if audit.audit_leader else None,
-            auditors=audit._fetched_auditors,
+            auditors=audit._fetched_auditors_usernames,
             test_name=audit.test.name,
             facility_name=audit.facility.short_name,
             data=processed_questions
@@ -287,17 +295,11 @@ class Audit(Document):
                 filtered_audits.append(audit)
         else:
             for audit in audits:
+                await audit.fetch_all_links()
+                await audit._fetch_auditors()
                 permissions = await audit._validate_participant(user)
-                leader_username = await audit.audit_leader.fetch()
-                if not isinstance(leader_username, User):
-                    leader_username = "Deleted user"
-                else:
-                    leader_username = leader_username.username
-                facility_short_name = await audit.facility.fetch()
-                if not isinstance(facility_short_name, Facility):
-                    facility_short_name = "Deleted facility"
-                else:
-                    facility_short_name = facility_short_name.short_name
+                leader_username = "Deleted user" if audit._fetched_audit_leader_username is None else audit._fetched_audit_leader_username
+                facility_short_name = "Deleted facility" if audit.facility is None else audit.facility.short_name
                 if len(permissions) == 0 and leader_username != user.username:
                     continue
                 audit = QuickAuditResponse(
@@ -310,7 +312,7 @@ class Audit(Document):
                     is_active=audit.is_active,
                     is_archived=audit.is_archived,
                     created_at=audit.created_at,
-                    change_activity=all(leader_username == user.username, audit.activation == 'on_demand', not audit.is_archived),
+                    change_activity=all([leader_username == user.username, audit.activation == 'on_demand', not audit.is_archived]),
                     results_access=audit.results_access,
                     my_permissions=permissions
                 )

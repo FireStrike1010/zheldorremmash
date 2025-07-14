@@ -12,7 +12,7 @@ class QuestionSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     task_value: str = Field(description="Roadmap requirements, how to achieve")
     control_element: Optional[str] = Field(default=None, description="Control validation records (Names of mandatory documents that demonstrate proper control execution)")
-    additional_info: Optional[str] = Field(default=None, description="Additional info")
+    additional_info: Optional[Any] = Field(default=None, description="Additional info")
     answer_type: FieldType = Field(description="HTML input type: checkbox - boolean, text - text (free-form text), number - integer/float, radio - text (selector)")
     answer_label: Optional[str] = Field(default=None, description="HTML label for input")
     answer_type_attributes: Optional[Dict[str, Any]] = Field(default=None, description="Additional field for HTML input style or whatever")

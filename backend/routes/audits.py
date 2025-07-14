@@ -8,11 +8,13 @@ from typing import Literal, List
 router = APIRouter(prefix='/audits', tags=['Audits'])
 
 
-@router.post('/add')
+@router.post('/add', response_model=AuditResponse)
 async def add_one(data: CreateAuditRequest, session_key: str = Depends(get_session_key)):
     await verify_role(session_key, possible_roles=['Admin', 'Moderator'])
     try:
-        await Audit.create(data)
+        audit = await Audit.create(data)
+        audit = await Audit.get_one(audit.id, fetch_links=True)
+        return await audit.process()
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
     except KeyError as e:
@@ -24,7 +26,7 @@ async def edit(data: EditAuditRequest, id: str, session_key: str = Depends(get_s
     try:
         audit = await Audit.get_one(id, fetch_links=True)
         await audit.edit(data)
-        audit = await Audit.get_one(id, fetch_links=True)
+        await audit._fetch_auditors()
         return await audit.process()
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
@@ -106,7 +108,7 @@ async def to_archive(id: str, session_key: str = Depends(get_session_key), passw
     user = await get_current_user(session_key)
     if user.role != 'Admin':
         raise HTTPException(403, "You don't have that privilege, you must be ['Admin']")
-    if user.username == 'root' or verify_password(user.password, password):
+    if user.username == 'root' or verify_password(password, user.password):
         audit = await Audit.get_one(id)
         await audit.to_archive()
     else:
