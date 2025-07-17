@@ -1,4 +1,4 @@
-from typing import Optional, Self, Literal, List, NoReturn, Dict, Any
+from typing import Optional, Self, Literal, List, NoReturn, Dict, Any, Union
 from beanie import Document, Link, Indexed
 from pydantic import Field, ConfigDict
 import datetime
@@ -38,7 +38,7 @@ class Audit(Document):
     ##Beanie's auto fetch doesn't work with nested structure, so it has to be manual fetching
     _fetched_auditors_usernames: Dict[str, Dict[str, List[str]]]
     _fetched_auditors_full_names: Dict[str, Dict[str, List[str]]]
-    results: Dict[str, Dict[str, Dict[int, Dict[int, str | int]]]]
+    results: Dict[str, Dict[str, Dict[int, Dict[int, Union[str, int]]]]]
     comments: Dict[str, Dict[str, Dict[int, Dict[int, Optional[str]]]]]
     test: Link[Test]
     is_active: bool

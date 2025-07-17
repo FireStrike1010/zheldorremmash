@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from datetime import datetime
-from typing import Optional, Literal, Dict, List, Any, OrderedDict
+from typing import Optional, Literal, Dict, List, Any, OrderedDict, Union
 from utils.pydantic_utils import PyObjectId
 from database.tests import QuestionSchema
 
@@ -64,7 +64,7 @@ class FillQuestionRequest(BaseModel):
     category: str = Field()
     level: int = Field()
     question_number: int = Field()
-    result: str | int = Field()
+    result: Union[str, int] = Field()
     comment: Optional[str] = Field(default=None)
 
     @field_validator('result', mode='before')
