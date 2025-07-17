@@ -38,7 +38,7 @@ class Audit(Document):
     ##Beanie's auto fetch doesn't work with nested structure, so it has to be manual fetching
     _fetched_auditors_usernames: Dict[str, Dict[str, List[str]]]
     _fetched_auditors_full_names: Dict[str, Dict[str, List[str]]]
-    results: Dict[str, Dict[str, Dict[int, Dict[int, Any]]]]
+    results: Dict[str, Dict[str, Dict[int, Dict[int, str | int]]]]
     comments: Dict[str, Dict[str, Dict[int, Dict[int, Optional[str]]]]]
     test: Link[Test]
     is_active: bool
@@ -113,8 +113,8 @@ class Audit(Document):
                 nested_nones[part_name] = dict()
             for category, usernames in values.items():
                 users = await asyncio.gather(*[User.get_one_by_username(username) for username in usernames])
-                if any(u.role in ('Admin', 'Moderator') for u in users):
-                    raise ValueError("Admins and Moderators can't be assigned as auditor")
+                if any(u.role == 'Moderator' for u in users):
+                    raise ValueError("Moderators can't be assigned as auditor")
                 auditors[part_name][category] = [user.id for user in users]
                 try:
                     nested_nones[part_name][category] = {level: {question_number: None for question_number in questions.keys()} for level, questions in test.data[part_name][category].items()}

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from datetime import datetime
 from typing import Optional, Literal, Dict, List, Any, OrderedDict
 from utils.pydantic_utils import PyObjectId
@@ -64,8 +64,17 @@ class FillQuestionRequest(BaseModel):
     category: str = Field()
     level: int = Field()
     question_number: int = Field()
-    result: Any = Field()
-    comment: Optional[str] = Field()
+    result: str | int = Field()
+    comment: Optional[str] = Field(default=None)
+
+    @field_validator('result', mode='before')
+    def convert_result_to_int_if_possible(cls, value: object) -> Union[str, int]:
+        if isinstance(value, int):
+            return value
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            return str(value)
 
 class AuditResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
