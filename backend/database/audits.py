@@ -38,8 +38,8 @@ class Audit(Document):
     ##Beanie's auto fetch doesn't work with nested structure, so it has to be manual fetching
     _fetched_auditors_usernames: Dict[str, Dict[str, List[str]]]
     _fetched_auditors_full_names: Dict[str, Dict[str, List[str]]]
-    results: Dict[str, Dict[str, Dict[int, Dict[int, Union[str, int]]]]]
-    comments: Dict[str, Dict[str, Dict[int, Dict[int, Optional[str]]]]]
+    results: Dict[str, Dict[str, Dict[int, Dict[int, Union[str, int, None]]]]]
+    comments: Dict[str, Dict[str, Dict[int, Dict[int, Union[str, None]]]]]
     test: Link[Test]
     is_active: bool
     is_archived: bool
@@ -53,8 +53,6 @@ class Audit(Document):
 
     async def _fetch_auditors(self) -> None:
         '''TODO: To have hope for fixing beanie's .fetch_all_links() method'''
-        self._fetched_audit_leader_username = self.audit_leader.username if self.audit_leader else None
-        self._fetched_audit_leader_full_name = f"{self.audit_leader.surname} {self.audit_leader.name} {self.audit_leader.patronymic}".rstrip() if self.audit_leader else None
         self._fetched_auditors_usernames = dict()
         self._fetched_auditors_full_names = dict()
         for part_name, category in self.auditors.items():
@@ -135,8 +133,9 @@ class Audit(Document):
                     test=test.id,
                     is_active=False,
                     is_archived=False)
+        audit = await audit.insert()
         await audit._update_activity()
-        return await audit.insert()
+        return audit
     
     async def edit(self, data: EditAuditRequest) -> None | NoReturn:
         if self.is_archived:
@@ -197,13 +196,43 @@ class Audit(Document):
     async def delete_one(cls, id: str) -> None | NoReturn:
         await cls.find_one(cls.id == ObjectId(id)).delete()
 
+    async def _fetch_all(self, skip_test: bool = False, skip_auditors: bool = False) -> None:
+        #Fuck Beanie developers, cant fetch links properly
+        facility = await Facility.get(ObjectId(self.facility.ref.id))
+        if facility is None:
+            facility = Facility(short_name='Deleted Facility', full_name='Deleted Facility')
+        self.facility = facility
+        if self.audit_leader is not None:
+            audit_leader = await User.get(ObjectId(self.audit_leader.ref.id))
+            if audit_leader is None:
+                audit_leader = User(username="Deleted User",
+                                    email="deleted@user.com",
+                                    name="Deleted User",
+                                    surname="Deleted User",
+                                    role='User',
+                                    created_at=datetime.datetime.now(),
+                                    password="Deleted User")
+            self.audit_leader = audit_leader
+            self._fetched_audit_leader_username = self.audit_leader.username
+            self._fetched_audit_leader_full_name = f"{self.audit_leader.surname} {self.audit_leader.name} {self.audit_leader.patronymic}".rstrip()
+        else:
+            self._fetched_audit_leader_username = None
+            self._fetched_audit_leader_full_name = None
+        if not skip_test:
+            test = await Test.get(ObjectId(self.test.ref.id))
+            if test is None:
+                test = Test(name='Deleted Test', created_at=datetime.datetime.now())
+            self.test = test
+        if not skip_auditors:
+            await self._fetch_auditors()
+
     @classmethod
     async def get_one(cls, id: str, fetch_links: bool = False) -> Self | NoReturn:
         audit = await cls.get(ObjectId(id))
         if audit is None:
             raise ValueError(f'Audit with ID {id} not found')
         if fetch_links:
-            await audit.fetch_all_links()
+            await audit._fetch_all()
             await audit._fetch_auditors()
         return audit
     
@@ -274,16 +303,12 @@ class Audit(Document):
         filtered_audits = []
         if user.role in ('Admin', 'Moderator'):
             for audit in audits:
-                facility_short_name = await audit.facility.fetch()
-                if not isinstance(facility_short_name, Facility):
-                    facility_short_name = "Deleted facility"
-                else:
-                    facility_short_name = facility_short_name.short_name
+                await audit._fetch_all(skip_test=True, skip_auditors=True)
                 audit = QuickAuditResponse(
                     id=audit.id,
                     name=audit.name,
                     description=audit.description,
-                    facility=facility_short_name,
+                    facility=audit.facility.short_name,
                     start_datetime=audit.start_datetime,
                     end_datetime=audit.end_datetime,
                     is_active=audit.is_active,
@@ -295,24 +320,21 @@ class Audit(Document):
                 filtered_audits.append(audit)
         else:
             for audit in audits:
-                await audit.fetch_all_links()
-                await audit._fetch_auditors()
+                await audit._fetch_all(skip_test=True, skip_auditors=True)
                 permissions = await audit._validate_participant(user)
-                leader_username = "Deleted user" if audit._fetched_audit_leader_username is None else audit._fetched_audit_leader_username
-                facility_short_name = "Deleted facility" if audit.facility is None else audit.facility.short_name
-                if len(permissions) == 0 and leader_username != user.username:
+                if len(permissions) == 0 and audit._fetched_audit_leader_username != user.username:
                     continue
                 audit = QuickAuditResponse(
                     id=audit.id,
                     name=audit.name,
                     description=audit.description,
-                    facility=facility_short_name,
+                    facility=audit.facility.short_name,
                     start_datetime=audit.start_datetime,
                     end_datetime=audit.end_datetime,
                     is_active=audit.is_active,
                     is_archived=audit.is_archived,
                     created_at=audit.created_at,
-                    change_activity=all([leader_username == user.username, audit.activation == 'on_demand', not audit.is_archived]),
+                    change_activity=all([audit._fetched_audit_leader_username == user.username, audit.activation == 'on_demand', not audit.is_archived]),
                     results_access=audit.results_access,
                     my_permissions=permissions
                 )
@@ -353,13 +375,15 @@ class Audit(Document):
             for category in categories:
                 filtered_results[part_name][category] = self.results[part_name][category]
                 filtered_comments[part_name][category] = self.comments[part_name][category]
-        return AuditResultsResponse(**data.model_dump(), results=filtered_results, comments=filtered_results)
+        return AuditResultsResponse(**data.model_dump(), results=filtered_results, comments=filtered_comments)
 
     async def fill_questions(self, user: User, data: List[FillQuestionRequest]) -> None | NoReturn:
         permissions = await self._validate_participant(user)
         if not self.is_active or self.is_archived:
             raise TimeoutError("Audit is closed for filling")
         for question in data:
+            if "." in question.part_name or "." in question.category:
+                raise ValueError("Field names couldn't contain dots in them")
             if question.part_name not in permissions or question.category not in permissions[question.part_name]:
                 raise PermissionError(f"You dont have permission to fill that question (you're not auditor for {question.part_name} - {question.category})")
             self.results[question.part_name][question.category][question.level][question.question_number] = question.result
@@ -367,12 +391,8 @@ class Audit(Document):
         await self.save_changes()
 
     async def change_activity(self, user: User, data: bool) -> None | NoReturn:
-        leader_username = await self.audit_leader.fetch()
-        if not isinstance(leader_username, User):
-            leader_username = "Deleted user"
-        else:
-            leader_username = leader_username.username
-        if user.role == 'Admin' or user.username == leader_username:
+        self._fetch_all(skip_test=True, skip_auditors=True)
+        if user.role == 'Admin' or user.username == self._fetched_audit_leader_username:
             if self.activation == 'by_datetime':
                 raise ValueError('Activation of this audit meant to be "by_datetime", so it cant be activated/deactivated by leader')
             self.is_active = data
@@ -387,5 +407,5 @@ class Audit(Document):
     
     @classmethod
     async def nuke_collection(cls) -> int:
-        delete_result = await cls.get_motor_collection().delete_many({})
+        delete_result = await cls.get_pymongo_collection().delete_many({})
         return delete_result.deleted_count

@@ -78,6 +78,7 @@ async def change_activity(id: str, data: bool, session_key: str = Depends(get_se
     user = await get_current_user(session_key)
     try:
         audit = await Audit.get_one(id)
+        await audit._fetch_all(skip_test=True, skip_auditors=True)
         await audit.change_activity(user, data)
     except ValueError as e:
         raise HTTPException(403, detail=str(e))

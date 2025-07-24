@@ -64,13 +64,15 @@ class FillQuestionRequest(BaseModel):
     category: str = Field()
     level: int = Field()
     question_number: int = Field()
-    result: Union[str, int] = Field()
+    result: Union[str, int, None] = Field()
     comment: Optional[str] = Field(default=None)
 
     @field_validator('result', mode='before')
     def convert_result_to_int_if_possible(cls, value: object) -> Union[str, int]:
         if isinstance(value, int):
             return value
+        elif value is None:
+            return None
         try:
             return int(value)
         except (ValueError, TypeError):
@@ -80,7 +82,7 @@ class AuditResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: PyObjectId = Field()
     name: str = Field()
-    description: str = Field()
+    description: Optional[str] = Field()
     facility_id: PyObjectId = Field()
     facility_name: str = Field()
     test_id: PyObjectId = Field()
