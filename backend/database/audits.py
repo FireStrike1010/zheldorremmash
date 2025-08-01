@@ -185,7 +185,7 @@ class Audit(Document):
                         raise ValueError(f"Test {self.test.name} doesn't have {part_name} with {category}")
                     if part_name not in self.results:
                         self.results[part_name] = {}
-                    if category not in self.results:
+                    if category not in self.results[part_name]:
                         nested_nones = {level: {question_number: None for question_number in questions.keys()} for level, questions in self.test.data[part_name][category].items()}
                         self.results[part_name][category] = nested_nones
                         self.comments[part_name][category] = nested_nones
@@ -274,6 +274,7 @@ class Audit(Document):
             description=audit.description,
             start_datetime=audit.start_datetime,
             end_datetime=audit.end_datetime,
+            results_access=audit.results_access,
             audit_leader=audit.audit_leader.username if audit.audit_leader else None,
             auditors=audit._fetched_auditors_usernames,
             test_name=audit.test.name,
@@ -352,6 +353,7 @@ class Audit(Document):
             test_name=self.test.name,
             start_datetime=self.start_datetime,
             end_datetime=self.end_datetime,
+            results_access=self.results_access,
             activation=self.activation,
             is_active=self.is_active,
             is_archived=self.is_archived,
