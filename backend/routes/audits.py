@@ -68,7 +68,7 @@ async def fill_questions(id: str, data: List[FillQuestionRequest], session_key: 
         raise HTTPException(403, detail=str(e))
 
 @router.get('/my_audits/{type}', response_model=List[QuickAuditResponse])
-async def get_my_audits(type: Literal['archived', 'planned', 'current', 'active', 'inactive', 'passed', 'all'], session_key: str = Depends(get_session_key)):
+async def get_my_audits(type: Literal['archived', 'planned', 'current', 'active', 'inactive', 'passed', 'all', 'self-esteem'], session_key: str = Depends(get_session_key)):
     user = await get_current_user(session_key)
     audits = await Audit.get_my_audits(user, which=type)
     return audits

@@ -20,6 +20,8 @@ class QuickAuditResponse(BaseModel):
     my_permissions: Optional[Dict[str, List[str]]] = Field(default=None, description="My part names and categories for audit")
 
 class CreateAuditRequest(BaseModel):
+    audit_type: Literal['common', 'self-esteem'] = Field(default='common', description='Type of audit')
+    esteem_audit: Optional[PyObjectId] = Field(default=None, description='ID of self esteem audit, need to be by same test. Used for comparison while filling and in results afterwards')
     name: str = Field(description='Name of audit')
     description: Optional[str] = Field(default=None, description='Additional info about audit')
     facility_id: PyObjectId = Field(description='ID of facility in Mongo DB')
@@ -32,6 +34,8 @@ class CreateAuditRequest(BaseModel):
     auditors: Dict[str, Dict[str, List[str]]] = Field(description='[part_name[category[usernames_of_auditors]]]')
 
 class EditAuditRequest(BaseModel):
+    audit_type: Optional[Literal['common', 'self-esteem']] = Field(default=None, description='Type of audit')
+    esteem_audit: Optional[PyObjectId] = Field(default=None, description='ID of self esteem audit, need to be by same test. Used for comparison while filling and in results afterwards')
     name: Optional[str] = Field(default=None, description='Name of audit')
     description: Optional[str] = Field(default=None, description='Additional info about audit')
     facility_id: Optional[PyObjectId] = Field(default=None, description='ID of facility in Mongo DB')
@@ -45,6 +49,8 @@ class EditAuditRequest(BaseModel):
 class ProcessedQuestion(QuestionSchema):
     result: Optional[Any] = Field(default=None, description='Result (answer)')
     comment: Optional[str] = Field(default=None, description='Comment to question')
+    esteem_result: Optional[Any] = Field(default=None, description='Esteem result (answer) from same question of esteem audit if defined')
+    esteem_comment: Optional[str] = Field(default=None, description='Esteem comment to question from same question of esteem audit if defined')
 
 class ComputedAuditResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -81,6 +87,9 @@ class FillQuestionRequest(BaseModel):
 
 class AuditResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+    audit_type: Literal['common', 'self-esteem'] = Field()
+    esteem_audit_id: Optional[PyObjectId] = Field()
+    esteem_audit_name: Optional[str] = Field()
     id: PyObjectId = Field()
     name: str = Field()
     description: Optional[str] = Field()
@@ -103,3 +112,5 @@ class AuditResultsResponse(AuditResponse):
     model_config = ConfigDict(from_attributes=True)
     results: Dict[str, Dict[str, Dict[int, Dict[int, Any]]]] = Field()
     comments: Dict[str, Dict[str, Dict[int, Dict[int, Optional[str]]]]] = Field()
+    esteem_results: Optional[Dict[str, Dict[str, Dict[int, Dict[int, Any]]]]] = Field(default=None)
+    esteem_comments: Optional[Dict[str, Dict[str, Dict[int, Dict[int, Optional[str]]]]]] = Field(default=None)

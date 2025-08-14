@@ -1,5 +1,6 @@
 from typing import Optional, Self, Literal, List, NoReturn, Dict, Any, Union
 from beanie import Document, Link, Indexed
+from beanie.odm.operators.find.logical import Or, And
 from pydantic import Field, ConfigDict
 import datetime
 from models.audits import (CreateAuditRequest,
@@ -20,9 +21,12 @@ class ProcessedQuestion(QuestionSchema):
     model_config = ConfigDict(from_attributes=True)
     result: Optional[Any] = Field(default=None, description='Result (answer)')
     comment: Optional[str] = Field(default=None, description='Comment to question')
-
+    esteem_result: Optional[Any] = Field(default=None, description='Esteem result (answer) from same question of esteem audit if defined')
+    esteem_comment: Optional[str] = Field(default=None, description='Esteem comment to question from same question of esteem audit if defined')
 
 class Audit(Document):
+    audit_type: Literal['common', 'self-esteem']
+    esteem_audit: Optional[Link["Audit"]]
     name: str
     description: Optional[str]
     facility: Link[Facility]
@@ -99,6 +103,12 @@ class Audit(Document):
                 raise ValueError("Provide start_datetime and end_datetime to control audit's activation 'by_datetime'")
         facility = await Facility.get_one(data.facility_id)
         test = await Test.get_one(data.test_id)
+        if data.esteem_audit is not None:
+            esteem_audit = await cls.get_one(data.esteem_audit, fetch_links=True)
+            if test.id != esteem_audit.test.id:
+                raise ValueError("Esteemed audit must be filled by same test")
+        else:
+            esteem_audit = None
         audit_leader = (await User.get_one_by_username(data.audit_leader)) if data.audit_leader else None
         if audit_leader and audit_leader.role == 'Moderator':
             raise ValueError("Moderators can't be assigned as audit leader")
@@ -118,7 +128,9 @@ class Audit(Document):
                     nested_nones[part_name][category] = {level: {question_number: None for question_number in questions.keys()} for level, questions in test.data[part_name][category].items()}
                 except KeyError:
                     raise KeyError(f"Test {test.name} doesn't have {part_name} with {category}")
-        audit = cls(name=data.name,
+        audit = cls(audit_type=data.audit_type,
+                    esteem_audit=esteem_audit,
+                    name=data.name,
                     description=data.description,
                     facility=facility.id,
                     created_at=datetime.datetime.now(),
@@ -140,37 +152,45 @@ class Audit(Document):
     async def edit(self, data: EditAuditRequest) -> None | NoReturn:
         if self.is_archived:
             raise PermissionError(f"Audit {self.id} is archived - it can't be changed")
-        if data.name is not None:
-            self.name = data.name
-        if data.description is not None:
-            self.description = data.description
-        if data.facility_id is not None:
-            facility = await Facility.get_one(data.facility_id)
+        data = data.model_dump(exclude_unset=True)
+        if 'audit_type' in data:
+            self.audit_type = data['audit_type']
+        if 'esteem_audit' in data:
+            esteem_audit = await Audit.get_one(data['esteem_audit'])
+            if esteem_audit.test.id != self.test.id:
+                raise ValueError("Esteemed audit must be filled by same test")
+            self.esteem_audit = esteem_audit
+        if 'name' in data:
+            self.name = data['name']
+        if 'description' in data:
+            self.description = data['description']
+        if 'facility_id' in data:
+            facility = await Facility.get_one(data['facility_id'])
             self.facility = facility
         update_activity_flag = False
-        if data.start_datetime is not None:
-            self.start_datetime = data.start_datetime
+        if 'start_datetime' in data:
+            self.start_datetime = data['start_datetime']
             update_activity_flag = True
-        if data.end_datetime is not None:
-            self.end_datetime = data.end_datetime
+        if 'end_datetime' in data:
+            self.end_datetime = data['end_datetime']
             update_activity_flag = True
-        if data.activation is not None:
-            self.activation = data.activation
+        if 'activation' in data:
+            self.activation = data['activation']
             update_activity_flag = True
         if (self.start_datetime is None or self.end_datetime is None) and self.activation == 'by_datetime':
             raise ValueError("Provide start_datetime and end_datetime to control audit's activation 'by_datetime'")
         if update_activity_flag:
             await self._update_activity()
-        if data.results_access is not None:
-            self.results_access = data.results_access
-        if data.audit_leader is not None:
-            audit_leader = await User.get_one_by_username(data.audit_leader)
+        if 'results_access' in data:
+            self.results_access = data['results_access']
+        if 'audit_leader' in data:
+            audit_leader = await User.get_one_by_username(data['audit_leader'])
             if audit_leader.role == 'Moderator':
                 raise ValueError("Moderators can't be assigned as audit leader")
             self.audit_leader = audit_leader
-        if data.auditors is not None:
+        if 'auditors' in data:
             auditors = dict()
-            for part_name, values in data.auditors.items():
+            for part_name, values in data['auditors'].items():
                 if part_name not in auditors:
                     auditors[part_name] = dict()
                 if part_name not in self.results:
@@ -189,14 +209,14 @@ class Audit(Document):
                         nested_nones = {level: {question_number: None for question_number in questions.keys()} for level, questions in self.test.data[part_name][category].items()}
                         self.results[part_name][category] = nested_nones
                         self.comments[part_name][category] = nested_nones
-        self.auditors = auditors
+            self.auditors = auditors
         await self.save_changes()
 
     @classmethod
     async def delete_one(cls, id: str) -> None | NoReturn:
         await cls.find_one(cls.id == ObjectId(id)).delete()
 
-    async def _fetch_all(self, skip_test: bool = False, skip_auditors: bool = False) -> None:
+    async def _fetch_all(self, skip_test: bool = False, skip_auditors: bool = False, skip_esteem_audit: bool = False) -> None:
         #Fuck Beanie developers, cant fetch links properly
         facility = await Facility.get(ObjectId(self.facility.ref.id))
         if facility is None:
@@ -225,20 +245,24 @@ class Audit(Document):
             self.test = test
         if not skip_auditors:
             await self._fetch_auditors()
+        if not skip_esteem_audit and self.esteem_audit is not None:
+            esteem_audit = await Audit.get(ObjectId(self.esteem_audit.ref.id))
+            self.esteem_audit = esteem_audit
 
     @classmethod
-    async def get_one(cls, id: str, fetch_links: bool = False) -> Self | NoReturn:
+    async def get_one(cls, id: str, fetch_links: bool = False, fetch_auditors: bool = False) -> Self | NoReturn:
         audit = await cls.get(ObjectId(id))
         if audit is None:
             raise ValueError(f'Audit with ID {id} not found')
         if fetch_links:
             await audit._fetch_all()
+        if fetch_auditors:
             await audit._fetch_auditors()
         return audit
     
     @classmethod
     async def get_one_for_auditor(cls, id: str, user: User) -> ComputedAuditResponse | NoReturn:
-        audit = await cls.get_one(id, fetch_links=True)
+        audit = await cls.get_one(id, fetch_links=True, fetch_auditors=True)
         if not audit.is_active or audit.is_archived:
             raise TimeoutError("Audit is closed for filling")
         permissions = await audit._validate_participant(user)
@@ -250,16 +274,19 @@ class Audit(Document):
             processed_questions[part_name] = dict()
             for category in categories:
                 processed_questions[part_name][category] = dict()
-        def process_question(d, part_name: str, category: str, level: int, question_number: int) -> ProcessedQuestion:
+        def process_question(audit: Audit, d, part_name: str, category: str, level: int, question_number: int) -> ProcessedQuestion:
             return ProcessedQuestion(
                 **d.model_dump(),
                 result=audit.results[part_name][category][level][question_number],
-                comment=audit.comments[part_name][category][level][question_number]
+                comment=audit.comments[part_name][category][level][question_number],
+                esteem_result=audit.esteem_audit.results[part_name][category][level][question_number] if audit.esteem_audit is not None else None,
+                esteem_comment=audit.esteem_audit.comments[part_name][category][level][question_number] if audit.esteem_audit is not None else None
                 )
         for part_name in processed_questions:
             for category in processed_questions[part_name]:
                 qs = audit.test.data[part_name][category]
                 qs_rebuilt = {l: {q: process_question(
+                    audit=audit,
                     d=qs[l][q],
                     part_name=part_name,
                     category=category,
@@ -284,21 +311,23 @@ class Audit(Document):
         return response
 
     @classmethod
-    async def get_my_audits(cls, user: User, which: Literal['archived', 'planned', 'current', 'active', 'inactive', 'passed', 'all'] = 'all') -> List[QuickAuditResponse]:
+    async def get_my_audits(cls, user: User, which: Literal['archived', 'planned', 'current', 'active', 'inactive', 'passed', 'all', 'self-esteem'] = 'all') -> List[QuickAuditResponse]:
         now = datetime.datetime.now()
         match which:
             case 'archived':
                 audits = await cls.find(cls.is_archived == True).to_list() # type: ignore  # noqa: E712
             case 'planned':
-                audits = await cls.find(cls.start_datetime > now, cls.is_archived == False).to_list() # type: ignore  # noqa: E712
+                audits = await cls.find(Or(And(cls.start_datetime > now, cls.is_archived == False), And(cls.is_archived == False, cls.activation == 'on_demand', cls.is_active == False))).to_list() # type: ignore  # noqa: E712
             case 'current':
-                audits = await cls.find(cls.start_datetime <= now, cls.end_datetime >= now, cls.is_archived == False).to_list() # type: ignore  # noqa: E712
+                audits = await cls.find(Or(And(cls.start_datetime <= now, cls.end_datetime >= now, cls.is_archived == False), And(cls.is_archived == False, cls.activation == 'on_demand', cls.is_active == True))).to_list() # type: ignore  # noqa: E712
             case 'active':
                 audits = await cls.find(cls.is_active == True).to_list() # type: ignore  # noqa: E712
             case 'inactive':
                 audits = await cls.find(cls.is_active == False).to_list() # type: ignore  # noqa: E712
             case 'passed':
                 audits = await cls.find(cls.end_datetime < now, cls.is_archived == False).to_list() # type: ignore  # noqa: E712
+            case 'self-esteem':
+                audits = await cls.find(cls.audit_type == 'self-esteem').to_list() # type: ignore  # noqa: E712
             case 'all':
                 audits = await cls.find_all().to_list()
         filtered_audits = []
@@ -344,6 +373,9 @@ class Audit(Document):
 
     async def process(self) -> AuditResponse:
         return AuditResponse(
+            audit_type=self.audit_type,
+            esteem_audit_id=self.esteem_audit.id if self.esteem_audit is not None else None,
+            esteem_audit_name=self.esteem_audit.name if self.esteem_audit is not None else None,
             id=self.id,
             name=self.name,
             description=self.description,
@@ -377,7 +409,23 @@ class Audit(Document):
             for category in categories:
                 filtered_results[part_name][category] = self.results[part_name][category]
                 filtered_comments[part_name][category] = self.comments[part_name][category]
-        return AuditResultsResponse(**data.model_dump(), results=filtered_results, comments=filtered_comments)
+        if self.esteem_audit is not None:
+            filtered_esteem_results = dict()
+            filtered_esteem_comments = dict()
+            for part_name, categories in permissions.items():
+                filtered_esteem_results[part_name] = dict()
+                filtered_esteem_comments[part_name] = dict()
+                for category in categories:
+                    filtered_esteem_results[part_name][category] = self.esteem_audit.results[part_name][category]
+                    filtered_esteem_comments[part_name][category] = self.esteem_audit.comments[part_name][category]
+        else:
+            filtered_esteem_results = None
+            filtered_esteem_comments = None
+        return AuditResultsResponse(**data.model_dump(),
+                                    results=filtered_results,
+                                    comments=filtered_comments,
+                                    esteem_results=filtered_esteem_results,
+                                    esteem_comments=filtered_esteem_comments)
 
     async def fill_questions(self, user: User, data: List[FillQuestionRequest]) -> None | NoReturn:
         permissions = await self._validate_participant(user)
