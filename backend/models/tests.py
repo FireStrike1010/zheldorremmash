@@ -16,13 +16,10 @@ class QuestionSchema(BaseModel):
     answer_label: Optional[str] = Field(default=None, description="HTML label for input")
     answer_type_attributes: Optional[Dict[str, Any]] = Field(default=None, description="Additional field for HTML input style or whatever")
 
-
-##TODO: replace copy of QuestionSchema with ForwardRef or whatever to prevent circular import
-
 class TestBase(BaseModel):
     name: str = Field(description='Name of the test')
     description: Optional[str] = Field(default=None, description='Additional description of the test')
-
+    coefficients: Optional[OrderedDict[str, float]] = Field(default=None, description='Coefficients of parts ("part_name") of test')
 
 class AddTestRequest(TestBase):
     ### [Разделы[Категории[Уровни[Вопросы(QuestionSchema)]]]]

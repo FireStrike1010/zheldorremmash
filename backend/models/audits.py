@@ -54,6 +54,8 @@ class ProcessedQuestion(QuestionSchema):
 
 class ComputedAuditResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+    audit_type: Literal['common', 'self-esteem'] = Field()
+    esteem_audit_id: Optional[PyObjectId] = Field()
     id: PyObjectId = Field()
     name: str = Field()
     description: Optional[str] = Field()
@@ -110,6 +112,7 @@ class AuditResponse(BaseModel):
 
 class AuditResultsResponse(AuditResponse):
     model_config = ConfigDict(from_attributes=True)
+    coefficients: Optional[OrderedDict[str, float]] = Field(default=None, description='Coefficients of parts ("part_name") of test')
     results: Dict[str, Dict[str, Dict[int, Dict[int, Any]]]] = Field()
     comments: Dict[str, Dict[str, Dict[int, Dict[int, Optional[str]]]]] = Field()
     esteem_results: Optional[Dict[str, Dict[str, Dict[int, Dict[int, Any]]]]] = Field(default=None)

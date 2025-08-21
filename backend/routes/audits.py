@@ -3,7 +3,7 @@ from utils.session_validator import get_session_key, verify_role, get_current_us
 from utils.password_hasher import verify_password
 from models.audits import CreateAuditRequest, EditAuditRequest, QuickAuditResponse, ComputedAuditResponse, FillQuestionRequest, AuditResponse, AuditResultsResponse
 from database import Audit
-from typing import Literal, List
+from typing import Literal, List, Optional
 
 router = APIRouter(prefix='/audits', tags=['Audits'])
 
@@ -68,9 +68,11 @@ async def fill_questions(id: str, data: List[FillQuestionRequest], session_key: 
         raise HTTPException(403, detail=str(e))
 
 @router.get('/my_audits/{type}', response_model=List[QuickAuditResponse])
-async def get_my_audits(type: Literal['archived', 'planned', 'current', 'active', 'inactive', 'passed', 'all', 'self-esteem'], session_key: str = Depends(get_session_key)):
+async def get_my_audits(type: Literal['archived', 'planned', 'current', 'active', 'inactive', 'passed', 'all', 'self-esteem'],
+                        test_id: Optional[str] = None,
+                        session_key: str = Depends(get_session_key)):
     user = await get_current_user(session_key)
-    audits = await Audit.get_my_audits(user, which=type)
+    audits = await Audit.get_my_audits(user, which=type, test_id=test_id)
     return audits
 
 @router.post('/@{id}/set_active/{data}')

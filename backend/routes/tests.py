@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pymongo.errors import DuplicateKeyError
 from models.tests import AddTestRequest, QuickTest, TestResponse, AddQuestionRequest, RemoveRequest
-from utils.session_validator import verify_role, get_session_key
+from utils.session_validator import verify_role, get_session_key, get_current_user
 from typing import List
 from database import Test
 
@@ -52,6 +52,14 @@ async def insert_question(id: str, data: AddQuestionRequest, session_key: str = 
         return TestResponse.model_validate(test)
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
+
+@router.delete('/nuke_collection')
+async def nuke_collection(session_key: str = Depends(get_session_key)):
+    user = await get_current_user(session_key)
+    if user.username != 'root':
+        raise HTTPException(403, "You don't have that privilege, you must use MASTER_KEY")
+    return await Test.nuke_collection()
+
 
 #@router.delete('/@{id}/remove', response_model=TestResponse)
 #async def delete_question(id: str, data: RemoveRequest, session_key: str = Depends(get_session_key)):

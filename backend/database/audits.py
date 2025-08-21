@@ -294,8 +294,9 @@ class Audit(Document):
                     question_number=q
                     ) for q in qs[l]} for l in qs}
                 processed_questions[part_name][category] = qs_rebuilt.copy()
-
         response = ComputedAuditResponse(
+            audit_type=audit.audit_type,
+            esteem_audit_id=audit.esteem_audit.id if audit.esteem_audit else None,
             id=audit.id,
             name=audit.name,
             description=audit.description,
@@ -311,25 +312,29 @@ class Audit(Document):
         return response
 
     @classmethod
-    async def get_my_audits(cls, user: User, which: Literal['archived', 'planned', 'current', 'active', 'inactive', 'passed', 'all', 'self-esteem'] = 'all') -> List[QuickAuditResponse]:
+    async def get_my_audits(cls, user: User, which: Literal['archived', 'planned', 'current', 'active', 'inactive', 'passed', 'all', 'self-esteem'] = 'all', test_id: Optional[str] = None) -> List[QuickAuditResponse]:
         now = datetime.datetime.now()
+        query = cls.find()
         match which:
             case 'archived':
-                audits = await cls.find(cls.is_archived == True).to_list() # type: ignore  # noqa: E712
+                query = query.find(cls.is_archived == True) # type: ignore  # noqa: E712
             case 'planned':
-                audits = await cls.find(Or(And(cls.start_datetime > now, cls.is_archived == False), And(cls.is_archived == False, cls.activation == 'on_demand', cls.is_active == False))).to_list() # type: ignore  # noqa: E712
+                query = query.find(Or(And(cls.start_datetime > now, cls.is_archived == False), And(cls.is_archived == False, cls.activation == 'on_demand', cls.is_active == False))) # type: ignore  # noqa: E712
             case 'current':
-                audits = await cls.find(Or(And(cls.start_datetime <= now, cls.end_datetime >= now, cls.is_archived == False), And(cls.is_archived == False, cls.activation == 'on_demand', cls.is_active == True))).to_list() # type: ignore  # noqa: E712
+                query = query.find(Or(And(cls.start_datetime <= now, cls.end_datetime >= now, cls.is_archived == False), And(cls.is_archived == False, cls.activation == 'on_demand', cls.is_active == True))) # type: ignore  # noqa: E712
             case 'active':
-                audits = await cls.find(cls.is_active == True).to_list() # type: ignore  # noqa: E712
+                query = query.find(cls.is_active == True) # type: ignore  # noqa: E712
             case 'inactive':
-                audits = await cls.find(cls.is_active == False).to_list() # type: ignore  # noqa: E712
+                query = query.find(cls.is_active == False) # type: ignore  # noqa: E712
             case 'passed':
-                audits = await cls.find(cls.end_datetime < now, cls.is_archived == False).to_list() # type: ignore  # noqa: E712
+                query = query.find(cls.end_datetime < now, cls.is_archived == False) # type: ignore  # noqa: E712
             case 'self-esteem':
-                audits = await cls.find(cls.audit_type == 'self-esteem').to_list() # type: ignore  # noqa: E712
+                query = query.find(cls.audit_type == 'self-esteem') # type: ignore  # noqa: E712
             case 'all':
-                audits = await cls.find_all().to_list()
+                query = query
+        if test_id is not None:
+            query = query.find(cls.test.id == ObjectId(test_id))
+        audits = await query.to_list()
         filtered_audits = []
         if user.role in ('Admin', 'Moderator'):
             for audit in audits:
@@ -403,9 +408,12 @@ class Audit(Document):
             raise PermissionError('You dont have permission to access results for this audit')
         filtered_results = dict()
         filtered_comments = dict()
+        coefficients = dict()
         for part_name, categories in permissions.items():
             filtered_results[part_name] = dict()
             filtered_comments[part_name] = dict()
+            if part_name not in coefficients:
+                coefficients[part_name] = self.test.coefficients[part_name] if self.test.coefficients is not None else None
             for category in categories:
                 filtered_results[part_name][category] = self.results[part_name][category]
                 filtered_comments[part_name][category] = self.comments[part_name][category]
@@ -422,6 +430,7 @@ class Audit(Document):
             filtered_esteem_results = None
             filtered_esteem_comments = None
         return AuditResultsResponse(**data.model_dump(),
+                                    coefficients=coefficients,
                                     results=filtered_results,
                                     comments=filtered_comments,
                                     esteem_results=filtered_esteem_results,

@@ -21,6 +21,7 @@ class Test(Document):
     name: Indexed(str) # type: ignore
     description: Optional[str] = None
     created_at: datetime
+    coefficients: Optional[OrderedDict[str, float]] = None
     ### {Разделы{Категории[Уровни[Вопросы(QuestionSchema)]]}}
     data: Optional[OrderedDict[str, OrderedDict[str, OrderedDict[int, OrderedDict[int, QuestionSchema]]]]] = None
     
@@ -73,3 +74,7 @@ class Test(Document):
     async def get_all(cls) -> List[Self]:
         return await cls.find_all().to_list()
     
+    @classmethod
+    async def nuke_collection(cls) -> int:
+        delete_result = await cls.get_pymongo_collection().delete_many({})
+        return delete_result.deleted_count
