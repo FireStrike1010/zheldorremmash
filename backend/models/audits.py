@@ -9,6 +9,8 @@ class QuickAuditResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: PyObjectId = Field(description='ID of audit in Mongo DB')
     name: str = Field(description='Name of audit')
+    audit_type: Literal['common', 'self-esteem'] = Field(default='common', description='Type of audit')
+    esteem_audit: Optional[PyObjectId] = Field(default=None, description='ID of self esteem audit, need to be by same test. Used for comparison while filling and in results afterwards')
     facility: str = Field(description='Facility short name')
     start_datetime: Optional[datetime] = Field(description='Start datetime of audit')
     end_datetime: Optional[datetime] = Field(description='End datetime of audit')

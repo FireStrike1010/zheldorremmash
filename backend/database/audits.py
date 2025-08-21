@@ -338,10 +338,12 @@ class Audit(Document):
         filtered_audits = []
         if user.role in ('Admin', 'Moderator'):
             for audit in audits:
-                await audit._fetch_all(skip_test=True, skip_auditors=True)
+                await audit._fetch_all(skip_test=True, skip_auditors=True, skip_esteem_audit=True)
                 audit = QuickAuditResponse(
                     id=audit.id,
                     name=audit.name,
+                    audit_type=audit.audit_type,
+                    esteem_audit=audit.esteem_audit.ref.id if audit.esteem_audit is not None else None,
                     description=audit.description,
                     facility=audit.facility.short_name,
                     start_datetime=audit.start_datetime,
@@ -355,13 +357,15 @@ class Audit(Document):
                 filtered_audits.append(audit)
         else:
             for audit in audits:
-                await audit._fetch_all(skip_test=True, skip_auditors=True)
+                await audit._fetch_all(skip_test=True, skip_auditors=True, skip_esteem_audit=True)
                 permissions = await audit._validate_participant(user)
                 if len(permissions) == 0 and audit._fetched_audit_leader_username != user.username:
                     continue
                 audit = QuickAuditResponse(
                     id=audit.id,
                     name=audit.name,
+                    audit_type=audit.audit_type,
+                    esteem_audit=audit.esteem_audit.ref.id if audit.esteem_audit is not None else None,
                     description=audit.description,
                     facility=audit.facility.short_name,
                     start_datetime=audit.start_datetime,
