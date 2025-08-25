@@ -156,10 +156,13 @@ class Audit(Document):
         if 'audit_type' in data:
             self.audit_type = data['audit_type']
         if 'esteem_audit' in data:
-            esteem_audit = await Audit.get_one(data['esteem_audit'])
-            if esteem_audit.test.id != self.test.id:
-                raise ValueError("Esteemed audit must be filled by same test")
-            self.esteem_audit = esteem_audit
+            if data['esteem_audit'] is None:
+                self.esteem_audit = None
+            else:
+                esteem_audit = await Audit.get_one(data['esteem_audit'])
+                if esteem_audit.test.ref.id != self.test.id:
+                    raise ValueError("Esteemed audit must be filled by same test")
+                self.esteem_audit = esteem_audit
         if 'name' in data:
             self.name = data['name']
         if 'description' in data:
@@ -275,12 +278,21 @@ class Audit(Document):
             for category in categories:
                 processed_questions[part_name][category] = dict()
         def process_question(audit: Audit, d, part_name: str, category: str, level: int, question_number: int) -> ProcessedQuestion:
+            result = audit.results[part_name][category][level][question_number]
+            comment = audit.comments[part_name][category][level][question_number]
+            esteem_result = None
+            esteem_comment = None
+            if audit.esteem_audit is not None:
+                if part_name in audit.esteem_audit.results:
+                    if category in audit.esteem_audit.results[part_name]:
+                        esteem_result=audit.esteem_audit.results[part_name][category][level][question_number]
+                        esteem_comment=audit.esteem_audit.comments[part_name][category][level][question_number]
             return ProcessedQuestion(
                 **d.model_dump(),
-                result=audit.results[part_name][category][level][question_number],
-                comment=audit.comments[part_name][category][level][question_number],
-                esteem_result=audit.esteem_audit.results[part_name][category][level][question_number] if audit.esteem_audit is not None else None,
-                esteem_comment=audit.esteem_audit.comments[part_name][category][level][question_number] if audit.esteem_audit is not None else None
+                result=result,
+                comment=comment,
+                esteem_result=esteem_result,
+                esteem_comment=esteem_comment
                 )
         for part_name in processed_questions:
             for category in processed_questions[part_name]:
@@ -321,7 +333,7 @@ class Audit(Document):
             case 'planned':
                 query = query.find(Or(And(cls.start_datetime > now, cls.is_archived == False), And(cls.is_archived == False, cls.activation == 'on_demand', cls.is_active == False))) # type: ignore  # noqa: E712
             case 'current':
-                query = query.find(Or(And(cls.start_datetime <= now, cls.end_datetime >= now, cls.is_archived == False), And(cls.is_archived == False, cls.activation == 'on_demand', cls.is_active == True))) # type: ignore  # noqa: E712
+                query = query.find(Or(And(cls.start_datetime <= now, cls.end_datetime >= now, cls.is_archived == False, cls.activation == 'by_datetime'), And(cls.is_archived == False, cls.activation == 'on_demand', cls.is_active == True))) # type: ignore  # noqa: E712
             case 'active':
                 query = query.find(cls.is_active == True) # type: ignore  # noqa: E712
             case 'inactive':
@@ -428,8 +440,12 @@ class Audit(Document):
                 filtered_esteem_results[part_name] = dict()
                 filtered_esteem_comments[part_name] = dict()
                 for category in categories:
-                    filtered_esteem_results[part_name][category] = self.esteem_audit.results[part_name][category]
-                    filtered_esteem_comments[part_name][category] = self.esteem_audit.comments[part_name][category]
+                    if part_name in self.esteem_audit.results and category in self.esteem_audit.results[part_name]:
+                        filtered_esteem_results[part_name][category] = self.esteem_audit.results[part_name][category]
+                        filtered_esteem_comments[part_name][category] = self.esteem_audit.comments[part_name][category]
+                    else:
+                        filtered_esteem_results[part_name][category] = None
+                        filtered_esteem_comments[part_name][category] = None
         else:
             filtered_esteem_results = None
             filtered_esteem_comments = None
